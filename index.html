@@ -204,6 +204,20 @@
   </section>
 </main>
 
+<div id="oneDriveGate" class="cloud-gate" role="dialog" aria-modal="true" aria-labelledby="oneDriveGateTitle">
+  <div class="cloud-gate-panel">
+    <div class="eyebrow">WILLOW PARK MONTESSORI</div>
+    <h2 id="oneDriveGateTitle">Connect to OneDrive</h2>
+    <p id="oneDriveGateText">Connect this tablet to Willow Park OneDrive before completing today's checks.</p>
+    <button class="btn primary large cloud-gate-btn" id="gateCloudConnect" type="button">Connect OneDrive</button>
+    <div id="gateOfflineBox" class="gate-offline hidden">
+      <p><b>No internet connection.</b> Checks can still be completed and saved safely on this tablet.</p>
+      <button class="btn secondary" id="gateContinueOffline" type="button">Continue offline</button>
+    </div>
+    <p class="field-help">Once connected, the PDF from each submitted assessment is backed up automatically to OneDrive.</p>
+  </div>
+</div>
+
 <div id="savingOverlay" class="saving-overlay hidden" role="status" aria-live="polite">
     <div class="saving-panel">
       <div id="savingSpinner" class="saving-spinner"></div>

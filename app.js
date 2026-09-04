@@ -14,6 +14,7 @@ const MS_LOGIN_HINT_KEY = "willowParkMicrosoftLoginHint";
 const MS_USERNAME_KEY = "willowParkMicrosoftUsername";
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 let db;
+let offlineGateBypassed=false;
 let currentRoom = null;
 let answers = [];
 let currentRecordId = null;
@@ -384,6 +385,7 @@ async function cloudConnect(){
   if(!client){alert("Microsoft sign-in is not available. Connect to the internet and reload once.");return}
   qs("cloudConnect").disabled=true;qs("cloudConnect").textContent="Opening Microsoft sign-in…";
   const topConnect=qs("topCloudConnect"); if(topConnect){topConnect.disabled=true;topConnect.textContent="Connecting…";}
+  const gateConnect=qs("gateCloudConnect"); if(gateConnect){gateConnect.disabled=true;gateConnect.textContent="Connecting…";}
   try{
     const loginHint=localStorage.getItem(MS_LOGIN_HINT_KEY) || localStorage.getItem(MS_USERNAME_KEY);
     const request={scopes:MS_SCOPES};
@@ -393,6 +395,7 @@ async function cloudConnect(){
   }catch(e){
     qs("cloudConnect").disabled=false;qs("cloudConnect").textContent="Connect OneDrive";
     if(topConnect){topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
+    if(gateConnect){gateConnect.disabled=false;gateConnect.textContent="Connect OneDrive";}
     alert("Could not start Microsoft sign-in: "+e.message);
   }
 }
@@ -555,6 +558,27 @@ function exportBackup(){
   });
 }
 
+function updateOneDriveGate(session){
+  const gate=qs("oneDriveGate"), connect=qs("gateCloudConnect"), offlineBox=qs("gateOfflineBox");
+  if(!gate)return;
+  if(session){
+    gate.classList.add("hidden");
+    offlineGateBypassed=false;
+    return;
+  }
+  if(!navigator.onLine){
+    if(offlineGateBypassed){ gate.classList.add("hidden"); return; }
+    gate.classList.remove("hidden");
+    if(connect){connect.classList.add("hidden");connect.disabled=true;}
+    if(offlineBox) offlineBox.classList.remove("hidden");
+    return;
+  }
+  offlineGateBypassed=false;
+  gate.classList.remove("hidden");
+  if(connect){connect.classList.remove("hidden");connect.disabled=false;connect.textContent="Connect OneDrive";}
+  if(offlineBox) offlineBox.classList.add("hidden");
+}
+
 function updateConnectionPill(){
   const pill=qs("connectionPill"), topConnect=qs("topCloudConnect");
   if(!pill)return;
@@ -569,6 +593,7 @@ function updateConnectionPill(){
       pill.className="pill neutral";pill.textContent="Online • cloud not connected";
       if(topConnect){topConnect.classList.remove("hidden");topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
     }
+    updateOneDriveGate(session);
   });
 }
 
@@ -648,6 +673,8 @@ qs("addStaffMember").addEventListener("click",addStaffMember);
 qs("newStaffName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addStaffMember();}});
 qs("cloudConnect").addEventListener("click",cloudConnect);
 qs("topCloudConnect").addEventListener("click",cloudConnect);
+qs("gateCloudConnect").addEventListener("click",cloudConnect);
+qs("gateContinueOffline").addEventListener("click",()=>{offlineGateBypassed=true;qs("oneDriveGate").classList.add("hidden");toast("Working offline — assessments will stay on this tablet until OneDrive reconnects.");});
 qs("cloudDisconnect").addEventListener("click",cloudDisconnect);
 qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
 
@@ -665,6 +692,7 @@ qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
   }
 
   window.addEventListener("online",async()=>{
+    offlineGateBypassed=false;
     const p=qs("connectionPill"), b=qs("topCloudConnect");
     if(p){p.className="pill neutral";p.textContent="Online • cloud not connected";}
     if(b){b.classList.remove("hidden");b.disabled=false;b.textContent="Connect OneDrive";}
