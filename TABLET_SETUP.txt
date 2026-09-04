@@ -1,14 +1,19 @@
-WILLOW PARK CHECKS V2.5 — SAMSUNG TABLET SETUP
+WILLOW PARK CHECKS — ONEDRIVE TABLET SETUP
 
-1. Open the live Willow Park Checks GitHub Pages site.
-2. Install/Add to Home screen if required.
+1. Open https://willowparkmontessori.github.io/WillowParkChecks/
+2. Install / Add to Home screen if required.
 3. Open Settings.
 4. Add staff members if needed.
-5. Under PDF cloud archive, enter the Willow Park cloud account email and password.
-6. Tap Connect this tablet.
-7. The status should show Connected.
-8. Complete one TEST assessment.
-9. Confirm the completion screen says PDF backed up to Willow Park cloud.
-10. On the office computer, open Supabase → Storage → risk-assessments and confirm the PDF is present and readable.
+5. Confirm Academic year and Current term.
+6. Under Microsoft OneDrive, tap Connect OneDrive.
+7. Sign in with the Willow Park Microsoft account and approve the requested app-folder access if prompted.
+8. Return to Settings and confirm the status says Connected.
+9. Complete one TEST assessment.
+10. Confirm the completion screen says "PDF backed up to Willow Park OneDrive".
+11. On the office computer, open OneDrive and check:
+    Apps > Willow Park Checks > Risk Assessments > [Academic Year] > [Term] > [Area]
+12. Open the PDF and confirm it is readable and correctly formatted.
 
-The tablet remains signed in between sessions. Do not place the account password, database password, or any Supabase secret/service-role key in GitHub.
+The Microsoft password is entered only on Microsoft's own sign-in page. No password or client secret belongs in the GitHub repository.
+
+If the tablet is offline or Microsoft sign-in needs renewing, the assessment remains saved locally and the PDF upload can be retried later.

@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Willow Checks">
-  <title>Willow Park Checks V2.5</title>
+  <title>Willow Park Checks</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -87,11 +87,11 @@
       <div class="eyebrow">ASSESSMENT COMPLETED</div>
       <h2>✓ Assessment saved</h2>
       <p id="completionSummary" class="muted"></p>
-      <div id="completionCloudStatus" class="notice info"><b>✓ Assessment saved on this tablet</b><br>Preparing the cloud audit copy…</div>
-      <button class="btn primary hidden" id="retryCloudUpload">Retry cloud upload</button>
+      <div id="completionCloudStatus" class="notice info"><b>✓ Assessment saved on this tablet</b><br>Preparing the OneDrive audit copy…</div>
+      <button class="btn primary hidden" id="retryCloudUpload">Retry OneDrive upload</button>
       <button class="btn secondary" id="downloadDailyPdf">Download PDF copy</button>
       <button class="btn secondary" id="completionHome">Return to dashboard</button>
-      <p class="field-help">When cloud is connected, the readable PDF is filed automatically. Staff do not need to open Downloads or choose a folder.</p>
+      <p class="field-help">When OneDrive is connected, the readable PDF is filed automatically. Staff do not need to open Downloads or choose a folder.</p>
     </div>
   </section>
 
@@ -180,26 +180,22 @@
     </div>
 
     <div class="card">
-      <div class="eyebrow">WILLOW PARK CLOUD</div>
-      <h2>PDF cloud archive</h2>
-      <p class="muted">Connect each Samsung tablet once. After that, every submitted daily assessment creates a readable PDF and files it automatically in the private Willow Park cloud archive.</p>
-      <div id="cloudStatus" class="notice info">Checking cloud connection…</div>
-      <div class="two-col">
-        <label class="field"><span>Cloud account email</span><input id="cloudEmail" type="email" autocomplete="username" value="info@willowparkmontessori.com"></label>
-        <label class="field"><span>Cloud account password</span><input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Enter once on this tablet"></label>
-      </div>
+      <div class="eyebrow">MICROSOFT ONEDRIVE</div>
+      <h2>PDF OneDrive archive</h2>
+      <p class="muted">Connect each tablet once with the Willow Park Microsoft account. After that, every submitted daily assessment creates a readable PDF and files it automatically in the Willow Park Checks app folder in OneDrive.</p>
+      <div id="cloudStatus" class="notice info">Checking OneDrive connection…</div>
       <div class="toolbar">
-        <button class="btn primary" id="cloudConnect">Connect this tablet</button>
+        <button class="btn primary" id="cloudConnect">Connect OneDrive</button>
         <button class="btn secondary hidden" id="cloudRetryPending">Upload pending assessments</button>
-        <button class="btn secondary hidden" id="cloudDisconnect">Disconnect cloud</button>
+        <button class="btn secondary hidden" id="cloudDisconnect">Disconnect OneDrive</button>
       </div>
-      <p class="field-help">The password is used only to sign in and is not saved in the app settings. Supabase keeps the tablet's signed-in session so staff should not need to log in each day.</p>
+      <p class="field-help">Microsoft sign-in is handled securely by Microsoft. No Microsoft password or client secret is stored in this app. PDFs are filed under <b>Apps → Willow Park Checks → Risk Assessments → Academic Year → Term → Area</b>.</p>
     </div>
 
     <div class="card">
       <div class="eyebrow">DATA SAFETY</div>
       <h2>Backup & local storage</h2>
-      <p class="muted">Assessments are stored in IndexedDB on this device and remain available without internet. Download a full backup regularly and copy it to OneDrive. Keep the public GitHub repository for the app code only — never upload completed nursery records there.</p>
+      <p class="muted">Assessments are stored in IndexedDB on this device and remain available without internet. Download a full JSON backup regularly for disaster recovery. Keep the public GitHub repository for the app code only — never upload completed nursery records there.</p>
       <button class="btn primary" id="settingsBackup">Download full tablet backup</button>
     </div>
   </section>
@@ -208,7 +204,7 @@
 <div id="toast" class="toast hidden"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@azure/msal-browser@5.16.0/lib/msal-browser.min.js" crossorigin="anonymous"></script>
 <script src="app.js"></script>
 </body>
 </html>

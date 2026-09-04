@@ -6,14 +6,17 @@ const DB_NAME = "WillowParkChecksDB";
 const DB_VERSION = 2;
 const STORE = "records";
 const SETTINGS_KEY = "willowParkChecksSettingsV2";
-const SUPABASE_URL = "https://ldrcmwqtkdwoawnujlrs.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_0EFDREmHOxFZ1weVA-pwsg_AzB9g-OP";
-const SUPABASE_BUCKET = "risk-assessments";
+const MS_CLIENT_ID = "16e5590c-bd06-4783-8951-57235e5c6fb4";
+const MS_AUTHORITY = "https://login.microsoftonline.com/consumers/";
+const MS_REDIRECT_URI = "https://willowparkmontessori.github.io/WillowParkChecks/";
+const MS_SCOPES = ["Files.ReadWrite.AppFolder", "User.Read"];
+const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 let db;
 let currentRoom = null;
 let answers = [];
 let currentRecordId = null;
-let supabaseClient = null;
+let msalInstance = null;
+let msalReady = false;
 
 function qs(id){ return document.getElementById(id); }
 function escapeHtml(s){ return String(s ?? "").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
@@ -30,7 +33,7 @@ function weekDates(mondayStr){
 }
 function slug(s){ return s.replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"-"); }
 function getSettings(){
-  const defaults={deviceArea:"All",academicYear:academicYearDefault(),currentTerm:termDefault(),staffMembers:[],cloudEmail:"info@willowparkmontessori.com"};
+  const defaults={deviceArea:"All",academicYear:academicYearDefault(),currentTerm:termDefault(),staffMembers:[]};
   try{
     const saved={...defaults,...JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}")};
     saved.staffMembers=Array.isArray(saved.staffMembers)?saved.staffMembers.filter(Boolean):[];
@@ -149,12 +152,12 @@ async function submitAssessment(){
   setCompletionCloudStatus("local");
   if(!navigator.onLine){ setCompletionCloudStatus("waiting","No internet connection. The PDF is safely stored locally and can be uploaded later."); return; }
   const session=await getCloudSession();
-  if(!session){ setCompletionCloudStatus("waiting","Cloud is not connected on this tablet. Connect it once in Settings, then retry the upload."); return; }
+  if(!session){ setCompletionCloudStatus("waiting","OneDrive is not connected on this tablet. Connect it once in Settings, then retry the upload."); return; }
   setCompletionCloudStatus("uploading");
   try{
     await uploadRecordPdf(rec);
     setCompletionCloudStatus("synced");
-    toast("Assessment saved locally and PDF backed up to Willow Park cloud.");
+    toast("Assessment saved locally and PDF backed up to Willow Park OneDrive.");
   }catch(e){
     console.warn(e);
     setCompletionCloudStatus("waiting",`Cloud upload did not complete: ${e.message}`);
@@ -220,7 +223,7 @@ async function showRecord(id){
 async function showWeekly(room, monday){
   const records=(await allRecords()).filter(r=>r.room===room&&weekDates(monday).includes(r.date));
   renderWeeklyHtml(room,monday,records); switchView("weeklyView");
-  qs("downloadWeekly").onclick=async()=>{try{const records=(await allRecords()).filter(r=>r.room===room && mondayOf(r.date)===monday);const blob=await makeWeeklyPdfBlob(room,monday,records);downloadBlob(blob,`WC ${monday} - ${room}.pdf`);toast("Weekly PDF downloaded. Save a copy to OneDrive.");}catch(e){alert("Could not create PDF: "+e.message)}};
+  qs("downloadWeekly").onclick=async()=>{try{const records=(await allRecords()).filter(r=>r.room===room && mondayOf(r.date)===monday);const blob=await makeWeeklyPdfBlob(room,monday,records);downloadBlob(blob,`WC ${monday} - ${room}.pdf`);toast("Weekly PDF downloaded.");}catch(e){alert("Could not create PDF: "+e.message)}};
 }
 function latestForDate(records,date){ return records.filter(r=>r.date===date).sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt))[0]; }
 function renderWeeklyHtml(room,monday,records){
@@ -280,71 +283,160 @@ function dailyPdfFilename(r){
   const [y,m,d]=r.date.split("-");
   return `${d}-${m}-${y} - ${r.room} - ${r.completedBy}.pdf`.replace(/[\\/:*?"<>|]/g,"-");
 }
-function initSupabase(){
-  if(supabaseClient) return supabaseClient;
-  if(!window.supabase?.createClient) return null;
-  supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
-  return supabaseClient;
+async function initMicrosoft(){
+  if(msalReady && msalInstance) return msalInstance;
+  if(!window.msal?.PublicClientApplication) return null;
+  msalInstance=new window.msal.PublicClientApplication({
+    auth:{
+      clientId:MS_CLIENT_ID,
+      authority:MS_AUTHORITY,
+      redirectUri:MS_REDIRECT_URI,
+      postLogoutRedirectUri:MS_REDIRECT_URI,
+      navigateToLoginRequestUrl:true
+    },
+    cache:{cacheLocation:"localStorage"}
+  });
+  await msalInstance.initialize();
+  try{
+    const result=await msalInstance.handleRedirectPromise();
+    if(result?.account) msalInstance.setActiveAccount(result.account);
+  }catch(e){console.warn("Microsoft sign-in redirect could not be handled",e)}
+  if(!msalInstance.getActiveAccount()){
+    const accounts=msalInstance.getAllAccounts();
+    if(accounts.length) msalInstance.setActiveAccount(accounts[0]);
+  }
+  msalReady=true;
+  return msalInstance;
 }
 async function getCloudSession(){
-  const client=initSupabase(); if(!client)return null;
-  try{const {data}=await client.auth.getSession();return data?.session||null}catch{return null}
+  const client=await initMicrosoft(); if(!client)return null;
+  return client.getActiveAccount() || client.getAllAccounts()[0] || null;
+}
+async function getGraphToken(){
+  const client=await initMicrosoft(); if(!client)throw new Error("Microsoft sign-in component is not available");
+  const account=await getCloudSession(); if(!account)throw new Error("this tablet is not connected to Willow Park OneDrive");
+  try{
+    const result=await client.acquireTokenSilent({scopes:MS_SCOPES,account});
+    return result.accessToken;
+  }catch(e){
+    throw new Error("Microsoft sign-in needs reconnecting. Open Settings and tap Connect OneDrive.");
+  }
 }
 async function refreshCloudStatus(){
   const el=qs("cloudStatus"); if(!el)return;
-  const session=await getCloudSession();
-  if(session){
-    el.innerHTML=`<span class="pill good">Connected</span> Signed in as <b>${escapeHtml(session.user.email||"Willow Park Checks")}</b>.`;
+  const account=await getCloudSession();
+  if(account){
+    el.innerHTML=`<span class="pill good">Connected</span> OneDrive is connected as <b>${escapeHtml(account.username||account.name||"Willow Park")}</b>.`;
     qs("cloudConnect").classList.add("hidden");qs("cloudDisconnect").classList.remove("hidden");qs("cloudRetryPending").classList.remove("hidden");
   }else{
-    el.innerHTML=`<span class="pill neutral">Not connected</span> Sign this tablet in once so submitted PDFs can upload automatically.`;
+    el.innerHTML=`<span class="pill neutral">Not connected</span> Connect this tablet once with the Willow Park Microsoft account so submitted PDFs can upload automatically.`;
     qs("cloudConnect").classList.remove("hidden");qs("cloudDisconnect").classList.add("hidden");qs("cloudRetryPending").classList.add("hidden");
   }
   updateConnectionPill();
 }
 async function cloudConnect(){
-  const email=qs("cloudEmail").value.trim(), password=qs("cloudPassword").value;
-  if(!email||!password){alert("Enter the Willow Park cloud email and password.");return}
-  const client=initSupabase(); if(!client){alert("Cloud component is not available. Connect to the internet and reload once.");return}
-  qs("cloudConnect").disabled=true;qs("cloudConnect").textContent="Connecting…";
+  const client=await initMicrosoft();
+  if(!client){alert("Microsoft sign-in is not available. Connect to the internet and reload once.");return}
+  qs("cloudConnect").disabled=true;qs("cloudConnect").textContent="Opening Microsoft sign-in…";
   try{
-    const {error}=await client.auth.signInWithPassword({email,password}); if(error)throw error;
-    const st=getSettings();st.cloudEmail=email;saveSettings(st);qs("cloudPassword").value="";
-    toast("This tablet is connected to Willow Park cloud.");await refreshCloudStatus();
-  }catch(e){alert("Could not connect: "+e.message)}finally{qs("cloudConnect").disabled=false;qs("cloudConnect").textContent="Connect this tablet"}
+    await client.loginRedirect({scopes:MS_SCOPES,prompt:"select_account"});
+  }catch(e){
+    qs("cloudConnect").disabled=false;qs("cloudConnect").textContent="Connect OneDrive";
+    alert("Could not start Microsoft sign-in: "+e.message);
+  }
 }
 async function cloudDisconnect(){
-  const client=initSupabase(); if(client)await client.auth.signOut();
-  toast("Cloud disconnected on this tablet.");await refreshCloudStatus();
+  const client=await initMicrosoft(), account=await getCloudSession();
+  if(!client||!account){await refreshCloudStatus();return}
+  await client.logoutRedirect({account,postLogoutRedirectUri:MS_REDIRECT_URI});
 }
 function safePathPart(s){return String(s||"").replace(/[\\/:*?"<>|]/g,"-").trim();}
 function cloudPdfPath(r,filename=dailyPdfFilename(r)){
-  const st=getSettings();return `${safePathPart(st.academicYear)}/${safePathPart(st.currentTerm)}/${safePathPart(r.room)}/${safePathPart(filename)}`;
+  const st=getSettings();return `Risk Assessments/${safePathPart(st.academicYear)}/${safePathPart(st.currentTerm)}/${safePathPart(r.room)}/${safePathPart(filename)}`;
+}
+async function graphFetch(path,options={}){
+  const token=await getGraphToken();
+  const response=await fetch(`${GRAPH_BASE}${path}`,{
+    ...options,
+    headers:{Authorization:`Bearer ${token}`,...(options.headers||{})}
+  });
+  if(!response.ok){
+    let message=`Microsoft Graph returned ${response.status}`;
+    try{const data=await response.json();message=data?.error?.message||message}catch{}
+    throw new Error(message);
+  }
+  if(response.status===204)return null;
+  const type=response.headers.get("content-type")||"";
+  return type.includes("application/json")?response.json():response;
+}
+async function getAppRoot(){
+  return graphFetch("/me/drive/special/approot?$select=id,name,webUrl");
+}
+async function findChildFolder(parentId,name){
+  const data=await graphFetch(`/me/drive/items/${encodeURIComponent(parentId)}/children?$select=id,name,folder&$top=200`);
+  return (data?.value||[]).find(x=>x.folder && x.name===name) || null;
+}
+async function ensureChildFolder(parentId,name){
+  const clean=safePathPart(name);
+  let found=await findChildFolder(parentId,clean); if(found)return found;
+  try{
+    return await graphFetch(`/me/drive/items/${encodeURIComponent(parentId)}/children`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:clean,folder:{},"@microsoft.graph.conflictBehavior":"fail"})
+    });
+  }catch(e){
+    found=await findChildFolder(parentId,clean); if(found)return found;
+    throw e;
+  }
+}
+async function ensureArchiveFolder(rec){
+  const st=getSettings();
+  let folder=await getAppRoot();
+  for(const name of ["Risk Assessments",st.academicYear,st.currentTerm,rec.room]){
+    folder=await ensureChildFolder(folder.id,name);
+  }
+  return folder;
+}
+async function findChildItem(parentId,name){
+  const data=await graphFetch(`/me/drive/items/${encodeURIComponent(parentId)}/children?$select=id,name,file,folder&$top=200`);
+  return (data?.value||[]).find(x=>x.name===name) || null;
+}
+async function uploadBlobToFolder(folderId,filename,blob){
+  const token=await getGraphToken();
+  const safeName=safePathPart(filename);
+  const url=`${GRAPH_BASE}/me/drive/items/${encodeURIComponent(folderId)}:/${encodeURIComponent(safeName)}:/content`;
+  const response=await fetch(url,{method:"PUT",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/pdf"},body:blob});
+  if(!response.ok){
+    let message=`OneDrive upload returned ${response.status}`;
+    try{const data=await response.json();message=data?.error?.message||message}catch{}
+    throw new Error(message);
+  }
+  return response.json();
 }
 async function uploadRecordPdf(rec){
-  const client=initSupabase(); if(!client)throw new Error("Cloud component unavailable");
-  const session=await getCloudSession(); if(!session)throw new Error("tablet is not connected to Willow Park cloud");
+  const session=await getCloudSession(); if(!session)throw new Error("this tablet is not connected to Willow Park OneDrive");
   const blob=await makeDailyPdfBlob(rec);
-  let filename=dailyPdfFilename(rec), path=cloudPdfPath(rec,filename);
-  let result=await client.storage.from(SUPABASE_BUCKET).upload(path,blob,{contentType:"application/pdf",upsert:false,cacheControl:"3600"});
-  if(result.error && /exist|duplicate|conflict/i.test(result.error.message||"")){
+  const folder=await ensureArchiveFolder(rec);
+  let filename=dailyPdfFilename(rec);
+  const existing=await findChildItem(folder.id,safePathPart(filename));
+  if(existing){
     const t=new Date(rec.submittedAt);const hh=String(t.getHours()).padStart(2,"0"),mm=String(t.getMinutes()).padStart(2,"0"),ss=String(t.getSeconds()).padStart(2,"0");
-    filename=filename.replace(/\.pdf$/i,` - ${hh}-${mm}-${ss}.pdf`);path=cloudPdfPath(rec,filename);
-    result=await client.storage.from(SUPABASE_BUCKET).upload(path,blob,{contentType:"application/pdf",upsert:false,cacheControl:"3600"});
+    filename=filename.replace(/\.pdf$/i,` - ${hh}-${mm}-${ss}.pdf`);
   }
-  if(result.error)throw result.error;
-  rec.syncStatus="synced";rec.syncError="";rec.syncedAt=new Date().toISOString();rec.cloudPath=path;await putRecord(rec);
-  return path;
+  const uploaded=await uploadBlobToFolder(folder.id,filename,blob);
+  rec.syncStatus="synced";rec.syncError="";rec.syncedAt=new Date().toISOString();rec.cloudPath=cloudPdfPath(rec,uploaded?.name||filename);rec.cloudWebUrl=uploaded?.webUrl||"";await putRecord(rec);
+  return rec.cloudPath;
 }
 async function retryCurrentCloudUpload(){
   const r=await getRecord(currentRecordId);if(!r)return;
   if(!navigator.onLine){alert("This tablet is offline. Try again when it has internet.");return}
   setCompletionCloudStatus("uploading");
-  try{await uploadRecordPdf(r);setCompletionCloudStatus("synced");toast("PDF backed up to Willow Park cloud.")}catch(e){setCompletionCloudStatus("waiting",e.message)}
+  try{await uploadRecordPdf(r);setCompletionCloudStatus("synced");toast("PDF backed up to Willow Park OneDrive.")}catch(e){setCompletionCloudStatus("waiting",e.message)}
 }
 async function retryPendingCloudUploads(){
   if(!navigator.onLine){alert("This tablet is offline.");return}
-  const session=await getCloudSession();if(!session){alert("Connect this tablet to Willow Park cloud first.");return}
+  const session=await getCloudSession();if(!session){alert("Connect this tablet to Willow Park OneDrive first.");return}
   const recs=(await allRecords()).filter(r=>r.syncStatus!=="synced");
   if(!recs.length){toast("No assessments are waiting to upload.");return}
   qs("cloudRetryPending").disabled=true;qs("cloudRetryPending").textContent="Uploading…";
@@ -354,10 +446,10 @@ async function retryPendingCloudUploads(){
 }
 function setCompletionCloudStatus(state,detail=""){
   const el=qs("completionCloudStatus"), retry=qs("retryCloudUpload");if(!el)return;
-  if(state==="synced"){el.className="notice success";el.innerHTML="<b>☁ PDF backed up to Willow Park cloud</b><br>Your readable audit PDF has been filed automatically.";retry.classList.add("hidden");}
-  else if(state==="uploading"){el.className="notice info";el.innerHTML="<b>☁ Uploading PDF…</b><br>Please keep this screen open for a moment.";retry.classList.add("hidden");}
+  if(state==="synced"){el.className="notice success";el.innerHTML="<b>☁ PDF backed up to Willow Park OneDrive</b><br>Your readable audit PDF has been filed automatically.";retry.classList.add("hidden");}
+  else if(state==="uploading"){el.className="notice info";el.innerHTML="<b>☁ Uploading PDF to OneDrive…</b><br>Please keep this screen open for a moment.";retry.classList.add("hidden");}
   else if(state==="waiting"){el.className="notice warning";el.innerHTML=`<b>⚠ PDF waiting to upload</b><br>${escapeHtml(detail||"The assessment remains safely saved on this tablet.")}`;retry.classList.remove("hidden");}
-  else{el.className="notice info";el.innerHTML="<b>✓ Assessment saved on this tablet</b><br>Preparing the cloud audit copy…";retry.classList.add("hidden");}
+  else{el.className="notice info";el.innerHTML="<b>✓ Assessment saved on this tablet</b><br>Preparing the OneDrive audit copy…";retry.classList.add("hidden");}
 }
 async function downloadCurrentDailyPdf(){
   const r=await getRecord(currentRecordId); if(!r)return;
@@ -441,9 +533,7 @@ function loadSettingsUI(){
   qs("academicYear").value=s.academicYear;
   qs("currentTerm").value=s.currentTerm;
   qs("newStaffName").value="";
-  qs("cloudEmail").value=s.cloudEmail||"info@willowparkmontessori.com";
-  qs("cloudPassword").value="";
-  renderStaffList();
+    renderStaffList();
   refreshCloudStatus();
 }
 
@@ -495,7 +585,7 @@ qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
   db=await openDB();
   qs("todayText").textContent=new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
-  initSupabase();
+  await initMicrosoft();
   window.addEventListener("online",()=>{updateConnectionPill();});
   window.addEventListener("offline",updateConnectionPill);
   await renderHome();
