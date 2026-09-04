@@ -1,0 +1,14 @@
+WILLOW PARK CHECKS V2.5 — SAMSUNG TABLET SETUP
+
+1. Open the live Willow Park Checks GitHub Pages site.
+2. Install/Add to Home screen if required.
+3. Open Settings.
+4. Add staff members if needed.
+5. Under PDF cloud archive, enter the Willow Park cloud account email and password.
+6. Tap Connect this tablet.
+7. The status should show Connected.
+8. Complete one TEST assessment.
+9. Confirm the completion screen says PDF backed up to Willow Park cloud.
+10. On the office computer, open Supabase → Storage → risk-assessments and confirm the PDF is present and readable.
+
+The tablet remains signed in between sessions. Do not place the account password, database password, or any Supabase secret/service-role key in GitHub.

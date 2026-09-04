@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#16365f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Willow Checks">
+  <title>Willow Park Checks V2.5</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <div class="eyebrow">WILLOW PARK MONTESSORI</div>
+    <h1>Daily Checks</h1>
+    <div id="todayText" class="subtle"></div>
+  </div>
+  <div id="connectionPill" class="pill neutral">Offline/local</div>
+</header>
+
+<main>
+  <section id="homeView" class="view">
+    <div class="toolbar">
+      <button class="btn secondary" data-action="dashboard">Dashboard</button>
+      <button class="btn secondary" data-action="history">History</button>
+      <button class="btn secondary" data-action="settings">Settings</button>
+    </div>
+
+    <div class="card hero">
+      <div>
+        <h2 id="homeHeading">Today's checks</h2>
+        <p class="muted">Open an area, complete each check and submit. Any issue must include the action taken.</p>
+      </div>
+      <div id="syncSummary" class="sync-summary"></div>
+    </div>
+
+    <div id="roomGrid" class="room-grid"></div>
+  </section>
+
+  <section id="formView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" data-action="home">← Back</button></div>
+    <div class="card">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">DAILY RISK ASSESSMENT</div>
+          <h2 id="formRoomTitle"></h2>
+        </div>
+        <span id="draftBadge" class="pill neutral">Draft</span>
+      </div>
+
+      <div class="two-col">
+        <label class="field">
+          <span>Date</span>
+          <input id="assessmentDate" type="date">
+        </label>
+        <label class="field">
+          <span>Completed by</span>
+          <select id="completedBy">
+            <option value="">Select staff member</option>
+          </select>
+          <small id="staffHelp" class="field-help"></small>
+        </label>
+      </div>
+
+      <div id="checkList"></div>
+
+      <label class="field">
+        <span>Other hazards / concerns</span>
+        <textarea id="otherHazards" rows="3" placeholder="Leave blank if none"></textarea>
+      </label>
+
+      <div class="notice warning">
+        If an item is marked <b>Issue</b>, both the issue and the action taken are required.
+      </div>
+
+      <div class="submitbar">
+        <button class="btn primary large" id="submitAssessment">Submit assessment</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="completionView" class="view hidden">
+    <div class="card completion-card">
+      <div class="eyebrow">ASSESSMENT COMPLETED</div>
+      <h2>✓ Assessment saved</h2>
+      <p id="completionSummary" class="muted"></p>
+      <div id="completionCloudStatus" class="notice info"><b>✓ Assessment saved on this tablet</b><br>Preparing the cloud audit copy…</div>
+      <button class="btn primary hidden" id="retryCloudUpload">Retry cloud upload</button>
+      <button class="btn secondary" id="downloadDailyPdf">Download PDF copy</button>
+      <button class="btn secondary" id="completionHome">Return to dashboard</button>
+      <p class="field-help">When cloud is connected, the readable PDF is filed automatically. Staff do not need to open Downloads or choose a folder.</p>
+    </div>
+  </section>
+
+  <section id="dashboardView" class="view hidden">
+    <div class="toolbar">
+      <button class="btn secondary" data-action="home">← Back</button>
+    </div>
+    <div class="card">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">MANAGER VIEW</div>
+          <h2>Today's dashboard</h2>
+        </div>
+        <div id="dashboardDate" class="muted"></div>
+      </div>
+      <div id="dashboardGrid" class="dashboard-grid"></div>
+    </div>
+    <div class="card">
+      <h3>Issues needing visibility</h3>
+      <div id="issueFeed"></div>
+    </div>
+  </section>
+
+  <section id="historyView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" data-action="home">← Back</button></div>
+    <div class="card">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">LOCAL RECORDS</div>
+          <h2>History</h2>
+        </div>
+        <button class="btn secondary" id="exportBackup">Export backup</button>
+      </div>
+      <div class="filter-row">
+        <label class="field compact"><span>Area</span><select id="historyArea"></select></label>
+        <label class="field compact"><span>Week commencing</span><input id="historyWeek" type="date"></label>
+      </div>
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <section id="recordView" class="view hidden">
+    <div class="toolbar">
+      <button class="btn secondary" data-action="history">← Back</button>
+      <button class="btn secondary" id="printRecord">Print / Save PDF</button>
+    </div>
+    <div class="card printable" id="recordCard"></div>
+  </section>
+
+  <section id="weeklyView" class="view hidden">
+    <div class="toolbar">
+      <button class="btn secondary" data-action="history">← Back</button>
+      <button class="btn secondary" id="printWeekly">Print / Save PDF</button>
+      <button class="btn primary" id="downloadWeekly">Download weekly PDF</button>
+    </div>
+    <div class="card printable" id="weeklyCard"></div>
+  </section>
+
+  <section id="settingsView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" data-action="home">← Back</button></div>
+
+    <div class="card">
+      <div class="eyebrow">ARCHIVE</div>
+      <h2>Archive settings</h2>
+      <p class="muted">Every tablet can complete every nursery risk assessment. These details are used for record keeping and PDF filenames.</p>
+      <div class="two-col">
+        <label class="field"><span>Academic year</span><input id="academicYear" placeholder="2026-2027"></label>
+        <label class="field"><span>Current term</span><select id="currentTerm"><option>Autumn Term</option><option>Spring Term</option><option>Summer Term</option></select></label>
+      </div>
+      <button class="btn primary" id="saveArchiveSettings">Save archive settings</button>
+    </div>
+
+
+    <div class="card">
+      <div class="eyebrow">STAFF</div>
+      <h2>Staff members</h2>
+      <p class="muted">Add the staff names that should appear in the <b>Completed by</b> dropdown. Removing a name only removes it from future checks — existing records keep the original staff name.</p>
+      <div class="staff-add-row">
+        <label class="field staff-add-field">
+          <span>Staff member's full name</span>
+          <input id="newStaffName" type="text" autocomplete="off" placeholder="e.g. Maura McMahon">
+        </label>
+        <button class="btn primary" id="addStaffMember" type="button">+ Add staff member</button>
+      </div>
+      <div id="staffList" class="staff-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">WILLOW PARK CLOUD</div>
+      <h2>PDF cloud archive</h2>
+      <p class="muted">Connect each Samsung tablet once. After that, every submitted daily assessment creates a readable PDF and files it automatically in the private Willow Park cloud archive.</p>
+      <div id="cloudStatus" class="notice info">Checking cloud connection…</div>
+      <div class="two-col">
+        <label class="field"><span>Cloud account email</span><input id="cloudEmail" type="email" autocomplete="username" value="info@willowparkmontessori.com"></label>
+        <label class="field"><span>Cloud account password</span><input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Enter once on this tablet"></label>
+      </div>
+      <div class="toolbar">
+        <button class="btn primary" id="cloudConnect">Connect this tablet</button>
+        <button class="btn secondary hidden" id="cloudRetryPending">Upload pending assessments</button>
+        <button class="btn secondary hidden" id="cloudDisconnect">Disconnect cloud</button>
+      </div>
+      <p class="field-help">The password is used only to sign in and is not saved in the app settings. Supabase keeps the tablet's signed-in session so staff should not need to log in each day.</p>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">DATA SAFETY</div>
+      <h2>Backup & local storage</h2>
+      <p class="muted">Assessments are stored in IndexedDB on this device and remain available without internet. Download a full backup regularly and copy it to OneDrive. Keep the public GitHub repository for the app code only — never upload completed nursery records there.</p>
+      <button class="btn primary" id="settingsBackup">Download full tablet backup</button>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+</body>
+</html>

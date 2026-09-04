@@ -1,0 +1,10 @@
+{
+  "name": "Willow Park Daily Checks",
+  "short_name": "Willow Checks",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f8fb",
+  "theme_color": "#12355b",
+  "description": "Willow Park Montessori daily risk assessment and compliance checks."
+}
