@@ -49,3 +49,9 @@ This repository is for app code only. Do not upload completed PDFs, JSON backups
 6. Confirm the completion screen says the PDF was backed up to Willow Park OneDrive.
 7. In OneDrive, verify the PDF exists under `Apps/Willow Park Checks/Risk Assessments/...` and opens correctly.
 
+
+
+## v3.1 usability update
+- Submit now shows a short full-screen saving/OneDrive backup screen until Microsoft confirms the PDF upload.
+- Microsoft sign-in is restored silently where Microsoft permits it; staff are only asked to reconnect when Microsoft genuinely requires interactive authentication.
+- Assessments are always saved locally before cloud upload begins, so failed/offline uploads remain pending rather than being lost.

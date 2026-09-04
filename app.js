@@ -10,6 +10,7 @@ const MS_CLIENT_ID = "16e5590c-bd06-4783-8951-57235e5c6fb4";
 const MS_AUTHORITY = "https://login.microsoftonline.com/consumers/";
 const MS_REDIRECT_URI = "https://willowparkmontessori.github.io/WillowParkChecks/";
 const MS_SCOPES = ["Files.ReadWrite.AppFolder", "User.Read"];
+const MS_LOGIN_HINT_KEY = "willowParkMicrosoftLoginHint";
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 let db;
 let currentRoom = null;
@@ -148,18 +149,31 @@ async function submitAssessment(){
   qs("draftBadge").className="pill good"; qs("draftBadge").textContent="Saved locally";
   currentRecordId=rec.id;
   qs("completionSummary").innerHTML=`<b>${escapeHtml(rec.room)}</b><br>${niceDate(rec.date)}<br>Completed by ${escapeHtml(rec.completedBy)} at ${niceTime(rec.submittedAt)}`;
-  switchView("completionView");
-  setCompletionCloudStatus("local");
-  if(!navigator.onLine){ setCompletionCloudStatus("waiting","No internet connection. The PDF is safely stored locally and can be uploaded later."); return; }
+
+  if(!navigator.onLine){
+    switchView("completionView");
+    setCompletionCloudStatus("waiting","No internet connection. The assessment is safely stored locally and will remain pending for OneDrive.");
+    return;
+  }
   const session=await getCloudSession();
-  if(!session){ setCompletionCloudStatus("waiting","OneDrive is not connected on this tablet. Connect it once in Settings, then retry the upload."); return; }
-  setCompletionCloudStatus("uploading");
+  if(!session){
+    switchView("completionView");
+    setCompletionCloudStatus("waiting","Microsoft needs this tablet to reconnect. The assessment is safely stored locally; open Settings and tap Connect OneDrive.");
+    return;
+  }
+
+  showSavingOverlay("Saving assessment…","Creating the PDF and backing it up to Willow Park OneDrive.");
   try{
     await uploadRecordPdf(rec);
+    showSavingOverlay("✓ Saved & backed up","OneDrive has confirmed the PDF upload.",true);
+    await new Promise(resolve=>setTimeout(resolve,850));
+    hideSavingOverlay();
+    switchView("completionView");
     setCompletionCloudStatus("synced");
-    toast("Assessment saved locally and PDF backed up to Willow Park OneDrive.");
   }catch(e){
     console.warn(e);
+    hideSavingOverlay();
+    switchView("completionView");
     setCompletionCloudStatus("waiting",`Cloud upload did not complete: ${e.message}`);
   }
 }
@@ -299,11 +313,22 @@ async function initMicrosoft(){
   await msalInstance.initialize();
   try{
     const result=await msalInstance.handleRedirectPromise();
-    if(result?.account) msalInstance.setActiveAccount(result.account);
+    if(result?.account){ msalInstance.setActiveAccount(result.account); if(result.account.username) localStorage.setItem(MS_LOGIN_HINT_KEY,result.account.username); }
   }catch(e){console.warn("Microsoft sign-in redirect could not be handled",e)}
   if(!msalInstance.getActiveAccount()){
     const accounts=msalInstance.getAllAccounts();
-    if(accounts.length) msalInstance.setActiveAccount(accounts[0]);
+    if(accounts.length){
+      msalInstance.setActiveAccount(accounts[0]);
+      if(accounts[0].username) localStorage.setItem(MS_LOGIN_HINT_KEY,accounts[0].username);
+    }else{
+      const loginHint=localStorage.getItem(MS_LOGIN_HINT_KEY);
+      if(loginHint){
+        try{
+          const silent=await msalInstance.ssoSilent({scopes:MS_SCOPES,loginHint});
+          if(silent?.account) msalInstance.setActiveAccount(silent.account);
+        }catch(e){ console.info("Silent Microsoft session restore was not available",e?.errorCode||e?.message||e); }
+      }
+    }
   }
   msalReady=true;
   return msalInstance;
@@ -444,6 +469,16 @@ async function retryPendingCloudUploads(){
   qs("cloudRetryPending").disabled=false;qs("cloudRetryPending").textContent="Upload pending assessments";
   toast(`${ok} uploaded${failed?`, ${failed} still waiting`:""}.`);await renderHome();
 }
+function showSavingOverlay(title,detail,success=false){
+  const overlay=qs("savingOverlay"); if(!overlay)return;
+  qs("savingOverlayTitle").textContent=title;
+  qs("savingOverlayDetail").textContent=detail;
+  qs("savingSpinner").classList.toggle("success",success);
+  qs("savingSpinner").textContent=success?"✓":"";
+  overlay.classList.remove("hidden");
+}
+function hideSavingOverlay(){ const overlay=qs("savingOverlay"); if(overlay)overlay.classList.add("hidden"); }
+
 function setCompletionCloudStatus(state,detail=""){
   const el=qs("completionCloudStatus"), retry=qs("retryCloudUpload");if(!el)return;
   if(state==="synced"){el.className="notice success";el.innerHTML="<b>☁ PDF backed up to Willow Park OneDrive</b><br>Your readable audit PDF has been filed automatically.";retry.classList.add("hidden");}
@@ -586,6 +621,7 @@ qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
   qs("todayText").textContent=new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
   await initMicrosoft();
+  try{ if(await getCloudSession()) await getGraphToken(); }catch(e){ console.info("OneDrive will request interaction only if Microsoft requires it."); }
   window.addEventListener("online",()=>{updateConnectionPill();});
   window.addEventListener("offline",updateConnectionPill);
   await renderHome();

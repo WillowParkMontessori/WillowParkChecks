@@ -201,7 +201,16 @@
   </section>
 </main>
 
-<div id="toast" class="toast hidden"></div>
+<div id="savingOverlay" class="saving-overlay hidden" role="status" aria-live="polite">
+    <div class="saving-panel">
+      <div id="savingSpinner" class="saving-spinner"></div>
+      <h2 id="savingOverlayTitle">Saving assessment…</h2>
+      <p id="savingOverlayDetail">Creating the PDF and backing it up to Willow Park OneDrive.</p>
+      <p class="saving-note">Please keep Willow Park Checks open until this finishes.</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="https://unpkg.com/@azure/msal-browser@5.16.0/lib/msal-browser.min.js" crossorigin="anonymous"></script>
