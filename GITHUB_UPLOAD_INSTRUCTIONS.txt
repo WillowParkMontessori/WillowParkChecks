@@ -1,0 +1,15 @@
+WILLOW PARK CHECKS — GITHUB UPLOAD
+
+Upload the CONTENTS of this folder to the root of the WillowParkChecks repository.
+The repository root should show files such as:
+- index.html
+- app.js
+- styles.css
+- manifest.webmanifest
+- sw.js
+- README.md
+- TABLET_SETUP.txt
+
+Do not upload completed risk-assessment PDFs or JSON backups to the public repository.
+
+This is the current working Willow Park Checks version. It still uses the existing Supabase cloud backup while the OneDrive/Entra integration is being completed. Once OneDrive is ready, app.js/index.html will be updated and Supabase can be removed.
