@@ -57,8 +57,15 @@ This repository is for app code only. Do not upload completed PDFs, JSON backups
 - Assessments are always saved locally before cloud upload begins, so failed/offline uploads remain pending rather than being lost.
 
 
-## v3.2 sign-in improvements
+## v3.3 sign-in improvements
 - The room screen loads immediately instead of waiting for Microsoft authentication.
 - Startup shows **Checking OneDrive…** while silent reconnection runs.
 - The app stores Microsoft's preferred login hint when available and uses it for silent SSO.
 - Reconnect no longer forces the account picker when the tablet already knows the Willow Park account.
+
+
+## v3.3 interface update
+- Removed the startup “Checking OneDrive…” state.
+- Rooms remain available immediately.
+- The header now shows the current cloud status and a Connect OneDrive button whenever OneDrive is not connected.
+- When OneDrive is connected, the header status shows Online • cloud connected and the connect button hides.

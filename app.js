@@ -383,6 +383,7 @@ async function cloudConnect(){
   const client=await initMicrosoft();
   if(!client){alert("Microsoft sign-in is not available. Connect to the internet and reload once.");return}
   qs("cloudConnect").disabled=true;qs("cloudConnect").textContent="Opening Microsoft sign-in…";
+  const topConnect=qs("topCloudConnect"); if(topConnect){topConnect.disabled=true;topConnect.textContent="Connecting…";}
   try{
     const loginHint=localStorage.getItem(MS_LOGIN_HINT_KEY) || localStorage.getItem(MS_USERNAME_KEY);
     const request={scopes:MS_SCOPES};
@@ -391,6 +392,7 @@ async function cloudConnect(){
     await client.loginRedirect(request);
   }catch(e){
     qs("cloudConnect").disabled=false;qs("cloudConnect").textContent="Connect OneDrive";
+    if(topConnect){topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
     alert("Could not start Microsoft sign-in: "+e.message);
   }
 }
@@ -554,11 +556,19 @@ function exportBackup(){
 }
 
 function updateConnectionPill(){
-  const pill=qs("connectionPill");
+  const pill=qs("connectionPill"), topConnect=qs("topCloudConnect");
+  if(!pill)return;
   getCloudSession().then(session=>{
-    if(!navigator.onLine){pill.className="pill neutral";pill.textContent="Offline • saved locally";}
-    else if(session){pill.className="pill good";pill.textContent="Online • cloud connected";}
-    else{pill.className="pill neutral";pill.textContent="Online • cloud not connected";}
+    if(!navigator.onLine){
+      pill.className="pill neutral";pill.textContent="Offline • saved locally";
+      if(topConnect){topConnect.classList.remove("hidden");topConnect.disabled=true;topConnect.textContent="Connect OneDrive";}
+    }else if(session){
+      pill.className="pill good";pill.textContent="Online • cloud connected";
+      if(topConnect){topConnect.classList.add("hidden");topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
+    }else{
+      pill.className="pill neutral";pill.textContent="Online • cloud not connected";
+      if(topConnect){topConnect.classList.remove("hidden");topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
+    }
   });
 }
 
@@ -637,6 +647,7 @@ qs("saveArchiveSettings").addEventListener("click",()=>{const s=getSettings();s.
 qs("addStaffMember").addEventListener("click",addStaffMember);
 qs("newStaffName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addStaffMember();}});
 qs("cloudConnect").addEventListener("click",cloudConnect);
+qs("topCloudConnect").addEventListener("click",cloudConnect);
 qs("cloudDisconnect").addEventListener("click",cloudDisconnect);
 qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
 
@@ -645,16 +656,18 @@ qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
   qs("todayText").textContent=new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
 
-  // The nursery UI should be usable immediately; cloud reconnection happens in the background.
+  // The nursery UI is usable immediately. Show a simple connection state; no "checking" phase.
   await renderHome();
-  const pill=qs("connectionPill");
+  const pill=qs("connectionPill"), topConnect=qs("topCloudConnect");
   if(pill){
-    if(!navigator.onLine){ pill.className="pill neutral"; pill.textContent="Offline • saved locally"; }
-    else { pill.className="pill neutral"; pill.textContent="Checking OneDrive…"; }
+    if(!navigator.onLine){ pill.className="pill neutral"; pill.textContent="Offline • saved locally"; if(topConnect){topConnect.disabled=true;} }
+    else { pill.className="pill neutral"; pill.textContent="Online • cloud not connected"; if(topConnect){topConnect.disabled=false;} }
   }
 
   window.addEventListener("online",async()=>{
-    const p=qs("connectionPill"); if(p){p.className="pill neutral";p.textContent="Checking OneDrive…";}
+    const p=qs("connectionPill"), b=qs("topCloudConnect");
+    if(p){p.className="pill neutral";p.textContent="Online • cloud not connected";}
+    if(b){b.classList.remove("hidden");b.disabled=false;b.textContent="Connect OneDrive";}
     msalReady=false; msalInstance=null;
     await initMicrosoft();
     updateConnectionPill();

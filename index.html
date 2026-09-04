@@ -18,7 +18,10 @@
     <h1>Daily Checks</h1>
     <div id="todayText" class="subtle"></div>
   </div>
-  <div id="connectionPill" class="pill neutral">Checking OneDrive…</div>
+  <div class="topbar-cloud">
+    <div id="connectionPill" class="pill neutral">Online • cloud not connected</div>
+    <button class="top-connect-btn" id="topCloudConnect" type="button">Connect OneDrive</button>
+  </div>
 </header>
 
 <main>
@@ -182,8 +185,8 @@
     <div class="card">
       <div class="eyebrow">MICROSOFT ONEDRIVE</div>
       <h2>PDF OneDrive archive</h2>
-      <p class="muted">Connect each tablet once with the Willow Park Microsoft account. After that, every submitted daily assessment creates a readable PDF and files it automatically in the Willow Park Checks app folder in OneDrive.</p>
-      <div id="cloudStatus" class="notice info">Checking OneDrive connection…</div>
+      <p class="muted">When the cloud status shows not connected, tap <b>Connect OneDrive</b>. The tablet remembers the Willow Park account so reconnecting should not require choosing the account again. Every submitted daily assessment then creates a readable PDF and files it automatically in the Willow Park Checks app folder in OneDrive.</p>
+      <div id="cloudStatus" class="notice info"><span class="pill neutral">Not connected</span> Tap Connect OneDrive to enable automatic PDF backup.</div>
       <div class="toolbar">
         <button class="btn primary" id="cloudConnect">Connect OneDrive</button>
         <button class="btn secondary hidden" id="cloudRetryPending">Upload pending assessments</button>
