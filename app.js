@@ -11,6 +11,7 @@ const MS_AUTHORITY = "https://login.microsoftonline.com/consumers/";
 const MS_REDIRECT_URI = "https://willowparkmontessori.github.io/WillowParkChecks/";
 const MS_SCOPES = ["Files.ReadWrite.AppFolder", "User.Read"];
 const MS_LOGIN_HINT_KEY = "willowParkMicrosoftLoginHint";
+const MS_USERNAME_KEY = "willowParkMicrosoftUsername";
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 let db;
 let currentRoom = null;
@@ -297,6 +298,15 @@ function dailyPdfFilename(r){
   const [y,m,d]=r.date.split("-");
   return `${d}-${m}-${y} - ${r.room} - ${r.completedBy}.pdf`.replace(/[\\/:*?"<>|]/g,"-");
 }
+function microsoftLoginHint(account){
+  return account?.loginHint || account?.idTokenClaims?.login_hint || account?.username || "";
+}
+function rememberMicrosoftAccount(account){
+  if(!account) return;
+  const hint=microsoftLoginHint(account);
+  if(hint) localStorage.setItem(MS_LOGIN_HINT_KEY,hint);
+  if(account.username) localStorage.setItem(MS_USERNAME_KEY,account.username);
+}
 async function initMicrosoft(){
   if(msalReady && msalInstance) return msalInstance;
   if(!window.msal?.PublicClientApplication) return null;
@@ -313,20 +323,30 @@ async function initMicrosoft(){
   await msalInstance.initialize();
   try{
     const result=await msalInstance.handleRedirectPromise();
-    if(result?.account){ msalInstance.setActiveAccount(result.account); if(result.account.username) localStorage.setItem(MS_LOGIN_HINT_KEY,result.account.username); }
-  }catch(e){console.warn("Microsoft sign-in redirect could not be handled",e)}
+    if(result?.account){
+      msalInstance.setActiveAccount(result.account);
+      rememberMicrosoftAccount(result.account);
+    }
+  }catch(e){
+    console.warn("Microsoft sign-in redirect could not be handled",e);
+  }
   if(!msalInstance.getActiveAccount()){
     const accounts=msalInstance.getAllAccounts();
     if(accounts.length){
       msalInstance.setActiveAccount(accounts[0]);
-      if(accounts[0].username) localStorage.setItem(MS_LOGIN_HINT_KEY,accounts[0].username);
+      rememberMicrosoftAccount(accounts[0]);
     }else{
-      const loginHint=localStorage.getItem(MS_LOGIN_HINT_KEY);
-      if(loginHint){
+      const loginHint=localStorage.getItem(MS_LOGIN_HINT_KEY) || localStorage.getItem(MS_USERNAME_KEY);
+      if(loginHint && navigator.onLine){
         try{
           const silent=await msalInstance.ssoSilent({scopes:MS_SCOPES,loginHint});
-          if(silent?.account) msalInstance.setActiveAccount(silent.account);
-        }catch(e){ console.info("Silent Microsoft session restore was not available",e?.errorCode||e?.message||e); }
+          if(silent?.account){
+            msalInstance.setActiveAccount(silent.account);
+            rememberMicrosoftAccount(silent.account);
+          }
+        }catch(e){
+          console.info("Silent Microsoft session restore was not available",e?.errorCode||e?.message||e);
+        }
       }
     }
   }
@@ -364,7 +384,11 @@ async function cloudConnect(){
   if(!client){alert("Microsoft sign-in is not available. Connect to the internet and reload once.");return}
   qs("cloudConnect").disabled=true;qs("cloudConnect").textContent="Opening Microsoft sign-in…";
   try{
-    await client.loginRedirect({scopes:MS_SCOPES,prompt:"select_account"});
+    const loginHint=localStorage.getItem(MS_LOGIN_HINT_KEY) || localStorage.getItem(MS_USERNAME_KEY);
+    const request={scopes:MS_SCOPES};
+    if(loginHint) request.loginHint=loginHint;
+    else request.prompt="select_account";
+    await client.loginRedirect(request);
   }catch(e){
     qs("cloudConnect").disabled=false;qs("cloudConnect").textContent="Connect OneDrive";
     alert("Could not start Microsoft sign-in: "+e.message);
@@ -620,10 +644,28 @@ qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
   db=await openDB();
   qs("todayText").textContent=new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
-  await initMicrosoft();
-  try{ if(await getCloudSession()) await getGraphToken(); }catch(e){ console.info("OneDrive will request interaction only if Microsoft requires it."); }
-  window.addEventListener("online",()=>{updateConnectionPill();});
-  window.addEventListener("offline",updateConnectionPill);
-  await renderHome();
 
+  // The nursery UI should be usable immediately; cloud reconnection happens in the background.
+  await renderHome();
+  const pill=qs("connectionPill");
+  if(pill){
+    if(!navigator.onLine){ pill.className="pill neutral"; pill.textContent="Offline • saved locally"; }
+    else { pill.className="pill neutral"; pill.textContent="Checking OneDrive…"; }
+  }
+
+  window.addEventListener("online",async()=>{
+    const p=qs("connectionPill"); if(p){p.className="pill neutral";p.textContent="Checking OneDrive…";}
+    msalReady=false; msalInstance=null;
+    await initMicrosoft();
+    updateConnectionPill();
+  });
+  window.addEventListener("offline",updateConnectionPill);
+
+  try{
+    await initMicrosoft();
+    if(await getCloudSession()) await getGraphToken();
+  }catch(e){
+    console.info("OneDrive silent reconnect was not available; interaction may be required.",e?.message||e);
+  }
+  updateConnectionPill();
 })();

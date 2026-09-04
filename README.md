@@ -55,3 +55,10 @@ This repository is for app code only. Do not upload completed PDFs, JSON backups
 - Submit now shows a short full-screen saving/OneDrive backup screen until Microsoft confirms the PDF upload.
 - Microsoft sign-in is restored silently where Microsoft permits it; staff are only asked to reconnect when Microsoft genuinely requires interactive authentication.
 - Assessments are always saved locally before cloud upload begins, so failed/offline uploads remain pending rather than being lost.
+
+
+## v3.2 sign-in improvements
+- The room screen loads immediately instead of waiting for Microsoft authentication.
+- Startup shows **Checking OneDrive…** while silent reconnection runs.
+- The app stores Microsoft's preferred login hint when available and uses it for silent SSO.
+- Reconnect no longer forces the account picker when the tablet already knows the Willow Park account.
