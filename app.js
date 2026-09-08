@@ -1,6 +1,25 @@
 
 const CHECKLISTS = {"Baby Room": ["Windows locked and window restrictors secure", "Skylight closed", "Floors clean, dry and clear", "Furniture, shelving and cupboards secure and safe", "Toys and equipment safe, undamaged and stored appropriately", "Fire exits and escape routes clear; doors secure when not in use", "Electrical sockets covered and wires safely out of reach", "Kitchen / stair guard closed"], "Class 1": ["Windows locked and window restrictors secure", "Floors clean, dry and clear", "Furniture and shelving secure and safe", "Toys and equipment safe, undamaged and stored appropriately", "Fire exits and escape routes kept clear", "Electrical sockets covered and wires safely out of reach"], "Class 2": ["Door shut", "Windows locked and window restrictors secure", "Floors clean, dry and clear", "Furniture and shelving secure and safe", "Toys and equipment safe, undamaged and stored appropriately", "Fire exit and stairs kept clear", "Electrical sockets covered and wires safely out of reach", "Stair guard securely in position during opening hours"], "Class 3": ["Door shut", "Windows locked and window restrictors secure", "Floors clean, dry and clear", "Furniture and shelving secure and safe", "Toys and equipment safe, undamaged and stored appropriately", "Fire exit and stairs kept clear", "Electrical sockets covered and wires safely out of reach"], "Garden": ["Decking and steps clean, clear, dry and safe", "Garden checked and clear of animal waste / other hazards", "Pond gate shut and secure", "Outdoor equipment safe, undamaged and fit for use", "Shed doors shut and locked", "Sandpit closed and secure when not in use", "Garden gates shut and secured as required"], "Kitchen": ["Kitchen gate shut", "Windows shut and securely locked", "Detergents / cleaning products stored safely and out of reach", "Floors clean, dry and clear", "Kitchen and appliances clean and tidy", "Food stored safely, covered and within use-by dates", "Fridge temperature recorded", "Freezer temperature recorded", "Kettle / hot appliances stored safely", "Oven / hob clean, safe and switched off", "Bins / waste area clean", "No signs of pests / pest activity"], "Lower Bathroom": ["Floor clean, dry and safe", "Bathroom, toilets / potties and equipment clean", "Baby changing area clean and secure", "Door stops safely in place when in use", "Soap and toilet rolls available", "Dry towels available", "Detergents / cleaning products stored safely out of reach", "Door closed and locked at night"], "Upper Bathroom": ["Floor clean, dry and safe", "Bathroom, toilets / potties and equipment clean", "Door stops safely in place when in use", "Soap and toilet rolls available", "Dry towels available", "Window closed"], "Sleep Room": ["Cupboards shut and shelves tidy and secure", "Electrical sockets protected and wiring safely out of children's reach", "Windows locked and window restrictors secure", "Floor clean, dry and clear", "Sleep mats clean and safely positioned"]};
 const ROOMS = Object.keys(CHECKLISTS);
+const OUTING_COMMON_RISKS = [
+  {risk:"Crossing the roads", control:"Use safe crossing points where possible. Children are closely supervised and hold an adult's hand / use the nursery's usual walking arrangement as appropriate."},
+  {risk:"Dog faeces", control:"Check the route and area, keep children away from contamination and make children aware of anything they must avoid."},
+  {risk:"Broken glass / sharp litter", control:"Check the route and area for hazards, keep children away from unsafe items and change route or position if necessary."},
+  {risk:"Strangers / members of the public", control:"Keep children together and closely supervised. Staff remain aware of people around the group and children do not leave with or follow anyone outside the group."},
+  {risk:"Children running into the road or becoming separated from the group", control:"Maintain the correct ratios and close supervision. Keep the group together and carry out regular head counts throughout the outing."}
+];
+const OUTING_FINAL_CHECKS = [
+  "Correct staffing ratio confirmed",
+  "Emergency contact details are available",
+  "First aid kit is being taken",
+  "An appropriate paediatric first aider is attending",
+  "Children have been counted before departure",
+  "Individual medical / allergy requirements have been considered",
+  "Head-count procedure will be followed throughout the outing"
+];
+let outingRisks = [];
+let outingExtraHazards = [];
+let currentOutingRecordId = null;
 const OPERATIONS = ["Kitchen","Garden","Lower Bathroom","Upper Bathroom","Sleep Room"];
 const DB_NAME = "WillowParkChecksDB";
 const DB_VERSION = 2;
@@ -208,7 +227,7 @@ async function showHistory(){
   await renderHistory();
 }
 async function renderHistory(){
-  let rows=await allRecords(), area=qs("historyArea").value, week=qs("historyWeek").value;
+  let rows=(await allRecords()).filter(r=>r.recordType!=="outing"), area=qs("historyArea").value, week=qs("historyWeek").value;
   if(area) rows=rows.filter(r=>r.room===area);
   if(week){const days=weekDates(week);rows=rows.filter(r=>days.includes(r.date))}
   const list=qs("historyList");
@@ -253,6 +272,176 @@ function renderWeeklyHtml(room,monday,records){
   <h3>Completion details</h3>${dates.map((d,i)=>{const r=latestForDate(records,d);return `<p><b>${dayLabels[i]} ${d.slice(8,10)}/${d.slice(5,7)}:</b> ${r?`${escapeHtml(r.completedBy)} at ${niceTime(r.submittedAt)}${r.hasIssue?" — issue recorded":""}`:"Not completed"}</p>`}).join("")}
   <h3>Issues / actions</h3>${issues.length?issues.map(x=>`<p><b>${niceDate(x.date)} — ${escapeHtml(x.q)}</b><br>Issue: ${escapeHtml(x.issue)}<br>Action taken: ${escapeHtml(x.action)}<br><span class="muted">Completed by ${escapeHtml(x.staff)}</span></p>`).join(""):`<p>No issues recorded.</p>`}`;
 }
+
+function renderOutingStaffControls(){
+  const staff=getSettings().staffMembers;
+  const lead=qs("outingLead"), list=qs("outingStaffList");
+  if(lead){
+    lead.innerHTML='<option value="">Select staff member</option>'+staff.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+  }
+  if(list){
+    list.innerHTML=staff.length?staff.map((n,i)=>`<label class="outing-check"><input type="checkbox" value="${escapeHtml(n)}" data-outing-staff="${i}"><span>${escapeHtml(n)}</span></label>`).join(""):'<div class="staff-empty">No staff members are set up yet. Add them in Settings → Staff members.</div>';
+  }
+}
+function selectedOutingStaff(){
+  return [...document.querySelectorAll("[data-outing-staff]:checked")].map(x=>x.value);
+}
+function renderOutingRisks(){
+  const box=qs("outingRiskList"); if(!box)return;
+  box.innerHTML=outingRisks.map((r,i)=>`<div class="outing-risk-row">
+    <div class="outing-risk-title">${i+1}. ${escapeHtml(r.risk)}</div>
+    <div class="choice-row">
+      <button type="button" class="choice ${r.applicable===true?"selected issue":""}" data-outing-risk="${i}" data-applicable="yes">Applicable</button>
+      <button type="button" class="choice ${r.applicable===false?"selected na":""}" data-outing-risk="${i}" data-applicable="no">Not applicable</button>
+    </div>
+    <div class="outing-control ${r.applicable===true?"":"hidden"}">
+      <label class="field"><span>Control / action to take</span><textarea rows="3" data-outing-control="${i}">${escapeHtml(r.control)}</textarea></label>
+    </div>
+  </div>`).join("");
+  box.querySelectorAll("[data-applicable]").forEach(btn=>btn.addEventListener("click",e=>{
+    const i=Number(e.currentTarget.dataset.outingRisk);
+    outingRisks[i].applicable=e.currentTarget.dataset.applicable==="yes";
+    renderOutingRisks();
+  }));
+  box.querySelectorAll("[data-outing-control]").forEach(el=>el.addEventListener("input",e=>outingRisks[Number(e.target.dataset.outingControl)].control=e.target.value));
+}
+function renderOutingExtraHazards(){
+  const box=qs("outingExtraHazards"); if(!box)return;
+  if(!outingExtraHazards.length){box.innerHTML='<p class="muted">No additional hazards added.</p>';return;}
+  box.innerHTML=outingExtraHazards.map((h,i)=>`<div class="outing-extra-row">
+    <div class="outing-extra-head"><strong>Additional hazard ${i+1}</strong><button type="button" class="btn danger" data-remove-outing-hazard="${i}">Remove</button></div>
+    <div class="outing-extra-grid">
+      <label class="field"><span>Hazard / risk</span><textarea rows="2" data-extra-risk="${i}" placeholder="Describe the hazard">${escapeHtml(h.risk)}</textarea></label>
+      <label class="field"><span>Action / control</span><textarea rows="2" data-extra-control="${i}" placeholder="How will the risk be controlled?">${escapeHtml(h.control)}</textarea></label>
+    </div>
+  </div>`).join("");
+  box.querySelectorAll("[data-extra-risk]").forEach(el=>el.addEventListener("input",e=>outingExtraHazards[Number(e.target.dataset.extraRisk)].risk=e.target.value));
+  box.querySelectorAll("[data-extra-control]").forEach(el=>el.addEventListener("input",e=>outingExtraHazards[Number(e.target.dataset.extraControl)].control=e.target.value));
+  box.querySelectorAll("[data-remove-outing-hazard]").forEach(btn=>btn.addEventListener("click",e=>{outingExtraHazards.splice(Number(e.currentTarget.dataset.removeOutingHazard),1);renderOutingExtraHazards();}));
+}
+function renderOutingFinalChecks(){
+  const box=qs("outingFinalChecks"); if(!box)return;
+  box.innerHTML=OUTING_FINAL_CHECKS.map((text,i)=>`<label class="outing-check"><input type="checkbox" data-outing-final="${i}"><span>${escapeHtml(text)}</span></label>`).join("");
+}
+function openOutingForm(){
+  if(!getSettings().staffMembers.length){alert("No staff members have been set up yet. Go to Settings → Staff members and add staff first.");return;}
+  qs("outingDate").value=localISO();
+  qs("outingPosition").value="";qs("outingTelephone").value="";qs("outingDeparture").value="";qs("outingReturn").value="";
+  qs("outingLocation").value="";qs("outingRoute").value="";qs("outingTransport").value="";qs("outingMaxChildren").value="";qs("outingRatio").value="";
+  qs("outingChildren").value="";qs("outingAccessibility").value="";qs("outingNotes").value="";
+  outingRisks=OUTING_COMMON_RISKS.map(x=>({...x,applicable:null})); outingExtraHazards=[];
+  renderOutingStaffControls(); renderOutingRisks(); renderOutingExtraHazards(); renderOutingFinalChecks();
+  switchView("outingView");
+}
+function validateOutingForm(){
+  const req=[
+    ["outingDate","Please select the date of the risk assessment."],
+    ["outingLead","Please select the person in charge of the outing."],
+    ["outingPosition","Please enter the position of the person in charge."],
+    ["outingTelephone","Please enter the telephone number."],
+    ["outingDeparture","Please enter the departure time."],
+    ["outingReturn","Please enter the expected return time."],
+    ["outingLocation","Please enter the location / venue."],
+    ["outingRoute","Please enter the route to be taken."],
+    ["outingTransport","Please enter the transport to be used."],
+    ["outingMaxChildren","Please enter the maximum number of children."],
+    ["outingRatio","Please enter the adult to child ratio."],
+    ["outingChildren","Please enter the children's names."]
+  ];
+  for(const [id,msg] of req){if(!String(qs(id).value||"").trim())return msg;}
+  const staff=selectedOutingStaff(); if(!staff.length)return "Please select the staff members attending the outing.";
+  if(!staff.includes(qs("outingLead").value))return "Please include the person in charge in the staff members attending.";
+  for(let i=0;i<outingRisks.length;i++){
+    const r=outingRisks[i]; if(r.applicable===null)return `Please mark common risk ${i+1} as Applicable or Not applicable.`;
+    if(r.applicable && !r.control.trim())return `Please record the control / action for common risk ${i+1}.`;
+  }
+  for(let i=0;i<outingExtraHazards.length;i++){
+    const h=outingExtraHazards[i]; if(!h.risk.trim()||!h.control.trim())return `Please complete both the hazard and control for additional hazard ${i+1}.`;
+  }
+  const finals=[...document.querySelectorAll("[data-outing-final]")];
+  if(finals.some(x=>!x.checked))return "Please confirm all final pre-departure checks before submitting.";
+  return "";
+}
+function outingRecordFromForm(){
+  const now=new Date();
+  return {
+    id:`outing-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+    recordType:"outing",date:qs("outingDate").value,submittedAt:now.toISOString(),
+    completedBy:qs("outingLead").value,room:"Outing Risk Assessment",hasIssue:false,
+    outing:{
+      lead:qs("outingLead").value,position:qs("outingPosition").value.trim(),telephone:qs("outingTelephone").value.trim(),
+      departure:qs("outingDeparture").value,returnTime:qs("outingReturn").value,location:qs("outingLocation").value.trim(),route:qs("outingRoute").value.trim(),
+      transport:qs("outingTransport").value.trim(),maxChildren:qs("outingMaxChildren").value,ratio:qs("outingRatio").value.trim(),
+      staff:selectedOutingStaff(),children:qs("outingChildren").value.trim(),accessibility:qs("outingAccessibility").value.trim(),notes:qs("outingNotes").value.trim(),
+      risks:JSON.parse(JSON.stringify(outingRisks)),extraHazards:JSON.parse(JSON.stringify(outingExtraHazards)),finalChecks:OUTING_FINAL_CHECKS.slice()
+    },syncStatus:"pending",syncError:"",cloudPath:""
+  };
+}
+async function submitOutingAssessment(){
+  const err=validateOutingForm(); if(err){alert(err);return;}
+  const rec=outingRecordFromForm(); await putRecord(rec); currentOutingRecordId=rec.id;
+  qs("outingCompletionSummary").innerHTML=`<b>${escapeHtml(rec.outing.location)}</b><br>${niceDate(rec.date)}<br>Person in charge: ${escapeHtml(rec.outing.lead)} • Departure ${escapeHtml(rec.outing.departure)}`;
+  if(!navigator.onLine){switchView("outingCompletionView");setOutingCompletionCloudStatus("waiting","No internet connection. The assessment is safely stored locally and will remain pending for OneDrive.");return;}
+  const session=await getCloudSession();
+  if(!session){switchView("outingCompletionView");setOutingCompletionCloudStatus("waiting","Microsoft needs this tablet to reconnect. The assessment is safely stored locally; open Settings and tap Connect OneDrive.");return;}
+  showSavingOverlay("Saving outing assessment…","Creating the PDF and backing it up to Willow Park OneDrive.");
+  try{
+    await uploadOutingPdf(rec);showSavingOverlay("✓ Saved & backed up","OneDrive has confirmed the outing PDF upload.",true);await new Promise(r=>setTimeout(r,850));hideSavingOverlay();switchView("outingCompletionView");setOutingCompletionCloudStatus("synced");
+  }catch(e){console.warn(e);hideSavingOverlay();switchView("outingCompletionView");setOutingCompletionCloudStatus("waiting",`Cloud upload did not complete: ${e.message}`);}
+}
+function setOutingCompletionCloudStatus(state,detail=""){
+  const el=qs("outingCompletionCloudStatus"),retry=qs("retryOutingCloudUpload");if(!el)return;
+  if(state==="synced"){el.className="notice success";el.innerHTML="<b>☁ PDF backed up to Willow Park OneDrive</b><br>The outing risk assessment has been filed automatically.";retry.classList.add("hidden");}
+  else if(state==="uploading"){el.className="notice info";el.innerHTML="<b>☁ Uploading PDF to OneDrive…</b><br>Please keep this screen open for a moment.";retry.classList.add("hidden");}
+  else{el.className="notice warning";el.innerHTML=`<b>⚠ PDF waiting to upload</b><br>${escapeHtml(detail||"The assessment remains safely saved on this tablet.")}`;retry.classList.remove("hidden");}
+}
+async function retryCurrentOutingUpload(){
+  const r=await getRecord(currentOutingRecordId);if(!r)return;if(!navigator.onLine){alert("This tablet is offline. Try again when it has internet.");return;}
+  setOutingCompletionCloudStatus("uploading");try{await uploadOutingPdf(r);setOutingCompletionCloudStatus("synced");toast("Outing PDF backed up to Willow Park OneDrive.");}catch(e){setOutingCompletionCloudStatus("waiting",e.message);}
+}
+function outingPdfFilename(r){
+  const [y,m,d]=r.date.split("-");const loc=safePathPart(r.outing?.location||"Outing");const lead=safePathPart(r.outing?.lead||r.completedBy||"Staff");
+  return `${d}-${m}-${y} - ${loc} - ${lead}.pdf`;
+}
+async function makeOutingPdfBlob(r){
+  if(!window.jspdf?.jsPDF)throw new Error("PDF component is not available. Connect to the internet and reload once.");
+  const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+  const left=14,width=182;let y=15;
+  const ensure=(need=12)=>{if(y+need>282){doc.addPage();y=15;header(false);}};
+  const line=(label,value)=>{ensure(10);doc.setFont("helvetica","bold");doc.setFontSize(9.5);doc.text(label,left,y);const labelW=doc.getTextWidth(label)+2;doc.setFont("helvetica","normal");const lines=doc.splitTextToSize(String(value||"—"),width-labelW);doc.text(lines,left+labelW,y);y+=Math.max(5,lines.length*4.2+1);};
+  const section=(title)=>{ensure(14);y+=3;doc.setTextColor(22,54,95);doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text(title,left,y);doc.setDrawColor(180);doc.line(left,y+2,left+width,y+2);y+=7;doc.setTextColor(25,25,25);};
+  function header(full=true){doc.setTextColor(22,54,95);doc.setFont("helvetica","bold");doc.setFontSize(full?16:12);doc.text("WILLOW PARK MONTESSORI",left,y);y+=7;if(full){doc.setTextColor(25,25,25);doc.setFontSize(14);doc.text("Outing Risk Assessment",left,y);y+=8;}}
+  header(true);line("Date of R/A:",niceDate(r.date));line("Person in charge:",r.outing.lead);line("Position:",r.outing.position);line("Telephone Number:",r.outing.telephone);line("Departure Time:",r.outing.departure);line("Expected return:",r.outing.returnTime);line("Location & venue:",r.outing.location);line("Route taken:",r.outing.route);line("Transport:",r.outing.transport);line("Maximum children:",r.outing.maxChildren);line("Adult to child ratio:",r.outing.ratio);
+  section("Staff member names");const staff=doc.splitTextToSize((r.outing.staff||[]).join(", ")||"—",width);doc.setFont("helvetica","normal");doc.setFontSize(9.3);doc.text(staff,left,y);y+=staff.length*4.2+2;
+  section("Children's Names");const children=doc.splitTextToSize(r.outing.children||"—",width);doc.text(children,left,y);y+=children.length*4.2+2;
+  section("Accessibility / additional needs and disabilities");const acc=doc.splitTextToSize(r.outing.accessibility||"None recorded",width);doc.text(acc,left,y);y+=acc.length*4.2+2;
+  section("Common risks / hazards and action to take");
+  (r.outing.risks||[]).forEach((risk,i)=>{const title=`${i+1}. ${risk.risk} — ${risk.applicable?"Applicable":"Not applicable"}`;const t=doc.splitTextToSize(title,width);ensure(t.length*4+10);doc.setFont("helvetica","bold");doc.setFontSize(9.3);doc.text(t,left,y);y+=t.length*4+1;if(risk.applicable){const c=doc.splitTextToSize(`Action / control: ${risk.control}`,width-4);doc.setFont("helvetica","normal");doc.setFontSize(8.8);doc.text(c,left+4,y);y+=c.length*3.9+3;}else y+=2;});
+  section("Additional hazards");if(!(r.outing.extraHazards||[]).length){doc.setFont("helvetica","normal");doc.setFontSize(9.3);doc.text("None recorded",left,y);y+=6;}else(r.outing.extraHazards||[]).forEach((h,i)=>{ensure(14);const lines=doc.splitTextToSize(`${i+1}. ${h.risk}\nAction / control: ${h.control}`,width);doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(lines,left,y);y+=lines.length*4+4;});
+  section("Final pre-departure checks");(r.outing.finalChecks||[]).forEach(x=>{ensure(7);doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(`✓ ${x}`,left,y);y+=5;});
+  section("Other notes / concerns");const notes=doc.splitTextToSize(r.outing.notes||"None recorded",width);doc.text(notes,left,y);y+=notes.length*4.2+3;
+  ensure(12);doc.setFont("helvetica","bold");doc.setFontSize(9);doc.text(`Completed by ${r.outing.lead} at ${niceTime(r.submittedAt)}`,left,y);doc.setTextColor(100);doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text("Generated by Willow Park Checks",left,290);
+  return doc.output("blob");
+}
+async function ensureOutingArchiveFolder(){
+  const st=getSettings();let folder=await getAppRoot();for(const name of ["Outing Risk Assessments",st.academicYear,st.currentTerm])folder=await ensureChildFolder(folder.id,name);return folder;
+}
+function outingCloudPath(r,filename=outingPdfFilename(r)){const st=getSettings();return `Outing Risk Assessments/${safePathPart(st.academicYear)}/${safePathPart(st.currentTerm)}/${safePathPart(filename)}`;}
+async function uploadOutingPdf(rec){
+  const session=await getCloudSession();if(!session)throw new Error("this tablet is not connected to Willow Park OneDrive");const blob=await makeOutingPdfBlob(rec),folder=await ensureOutingArchiveFolder();let filename=outingPdfFilename(rec);const existing=await findChildItem(folder.id,safePathPart(filename));if(existing){const t=new Date(rec.submittedAt),hh=String(t.getHours()).padStart(2,"0"),mm=String(t.getMinutes()).padStart(2,"0"),ss=String(t.getSeconds()).padStart(2,"0");filename=filename.replace(/\.pdf$/i,` - ${hh}-${mm}-${ss}.pdf`);}const uploaded=await uploadBlobToFolder(folder.id,filename,blob);rec.syncStatus="synced";rec.syncError="";rec.syncedAt=new Date().toISOString();rec.cloudPath=outingCloudPath(rec,uploaded?.name||filename);rec.cloudWebUrl=uploaded?.webUrl||"";await putRecord(rec);return rec.cloudPath;
+}
+async function downloadCurrentOutingPdf(){const r=await getRecord(currentOutingRecordId);if(!r)return;try{const blob=await makeOutingPdfBlob(r);downloadBlob(blob,outingPdfFilename(r));toast("Outing PDF downloaded.");}catch(e){alert("Could not create PDF: "+e.message);}}
+async function showOutingHistory(){
+  switchView("outingHistoryView");const rows=(await allRecords()).filter(r=>r.recordType==="outing");const list=qs("outingHistoryList");
+  if(!rows.length){list.innerHTML='<p class="muted">No outing risk assessments have been completed on this tablet yet.</p>';return;}
+  list.innerHTML=rows.map(r=>`<div class="history-item"><div><div class="outing-history-destination">${escapeHtml(r.outing?.location||"Outing")}</div><div class="history-meta">${niceDate(r.date)} • ${escapeHtml(r.outing?.lead||r.completedBy)} • Departure ${escapeHtml(r.outing?.departure||"")} • ${r.syncStatus==="synced"?"OneDrive backed up":"Saved locally"}</div></div><div class="history-actions"><span class="pill good">Completed</span><button class="btn secondary smallbtn" data-open-outing="${r.id}">Open</button></div></div>`).join("");
+  list.querySelectorAll("[data-open-outing]").forEach(b=>b.addEventListener("click",()=>showOutingRecord(b.dataset.openOuting)));
+}
+async function showOutingRecord(id){
+  const r=await getRecord(id);if(!r)return;currentOutingRecordId=id;const risks=(r.outing.risks||[]).map(x=>`<tr><td>${escapeHtml(x.risk)}</td><td>${x.applicable?"Applicable":"Not applicable"}</td><td>${x.applicable?escapeHtml(x.control):"—"}</td></tr>`).join("");const extras=(r.outing.extraHazards||[]).map(x=>`<p><b>${escapeHtml(x.risk)}</b><br>${escapeHtml(x.control)}</p>`).join("")||"<p>None recorded.</p>";
+  qs("outingRecordCard").innerHTML=`<div class="eyebrow">WILLOW PARK MONTESSORI</div><h2>Outing Risk Assessment</h2><p><b>Date:</b> ${niceDate(r.date)}<br><b>Person in charge:</b> ${escapeHtml(r.outing.lead)}<br><b>Position:</b> ${escapeHtml(r.outing.position)}<br><b>Telephone:</b> ${escapeHtml(r.outing.telephone)}<br><b>Departure:</b> ${escapeHtml(r.outing.departure)} &nbsp; <b>Expected return:</b> ${escapeHtml(r.outing.returnTime)}<br><b>Location & venue:</b> ${escapeHtml(r.outing.location)}<br><b>Route:</b> ${escapeHtml(r.outing.route)}<br><b>Transport:</b> ${escapeHtml(r.outing.transport)}<br><b>Maximum children:</b> ${escapeHtml(r.outing.maxChildren)} &nbsp; <b>Ratio:</b> ${escapeHtml(r.outing.ratio)}</p><h3>Staff attending</h3><p>${escapeHtml((r.outing.staff||[]).join(", "))}</p><h3>Children's Names</h3><p>${escapeHtml(r.outing.children).replace(/\n/g,"<br>")}</p><h3>Accessibility / additional needs</h3><p>${escapeHtml(r.outing.accessibility||"None recorded")}</p><h3>Common risks / hazards</h3><table><thead><tr><th>Risk / hazard</th><th>Applies?</th><th>Action / control</th></tr></thead><tbody>${risks}</tbody></table><h3>Additional hazards</h3>${extras}<h3>Final pre-departure checks</h3>${(r.outing.finalChecks||[]).map(x=>`<p>✓ ${escapeHtml(x)}</p>`).join("")}<h3>Other notes / concerns</h3><p>${escapeHtml(r.outing.notes||"None recorded")}</p><p><b>Completed:</b> ${new Date(r.submittedAt).toLocaleString("en-GB")}</p>`;switchView("outingRecordView");
+}
+
 async function makeDailyPdfBlob(r){
   if(!window.jspdf?.jsPDF) throw new Error("PDF component is not available. Connect to the internet and reload once.");
   const {jsPDF}=window.jspdf;
@@ -494,7 +683,7 @@ async function retryPendingCloudUploads(){
   const recs=(await allRecords()).filter(r=>r.syncStatus!=="synced");
   if(!recs.length){toast("No assessments are waiting to upload.");return}
   qs("cloudRetryPending").disabled=true;qs("cloudRetryPending").textContent="Uploading…";
-  let ok=0,failed=0;for(const r of recs){try{await uploadRecordPdf(r);ok++}catch(e){r.syncStatus="error";r.syncError=e.message;await putRecord(r);failed++}}
+  let ok=0,failed=0;for(const r of recs){try{if(r.recordType==="outing")await uploadOutingPdf(r);else await uploadRecordPdf(r);ok++}catch(e){r.syncStatus="error";r.syncError=e.message;await putRecord(r);failed++}}
   qs("cloudRetryPending").disabled=false;qs("cloudRetryPending").textContent="Upload pending assessments";
   toast(`${ok} uploaded${failed?`, ${failed} still waiting`:""}.`);await renderHome();
 }
@@ -657,6 +846,19 @@ document.addEventListener("click",e=>{
   const x=a.dataset.action;
   if(x==="home")goHome(); if(x==="dashboard")showDashboard(); if(x==="history")showHistory(); if(x==="settings"){switchView("settingsView");loadSettingsUI()}
 });
+qs("openOutingAssessment").addEventListener("click",openOutingForm);
+qs("openOutingHistory").addEventListener("click",showOutingHistory);
+qs("newOutingFromHistory").addEventListener("click",openOutingForm);
+qs("addOutingHazard").addEventListener("click",()=>{outingExtraHazards.push({risk:"",control:""});renderOutingExtraHazards();});
+qs("outingLead").addEventListener("change",()=>{
+  const lead=qs("outingLead").value;if(!lead)return;const cb=[...document.querySelectorAll("[data-outing-staff]")].find(x=>x.value===lead);if(cb)cb.checked=true;
+});
+qs("submitOutingAssessment").addEventListener("click",submitOutingAssessment);
+qs("retryOutingCloudUpload").addEventListener("click",retryCurrentOutingUpload);
+qs("downloadOutingPdf").addEventListener("click",downloadCurrentOutingPdf);
+qs("outingCompletionHome").addEventListener("click",goHome);
+qs("backToOutingHistory").addEventListener("click",showOutingHistory);
+qs("printOutingRecord").addEventListener("click",()=>window.print());
 qs("submitAssessment").addEventListener("click",submitAssessment);
 qs("retryCloudUpload").addEventListener("click",retryCurrentCloudUpload);
 qs("downloadDailyPdf").addEventListener("click",downloadCurrentDailyPdf);

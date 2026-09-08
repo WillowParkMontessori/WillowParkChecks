@@ -73,3 +73,10 @@ This repository is for app code only. Do not upload completed PDFs, JSON backups
 
 ## v3.4 connection gate
 On normal online startup, staff must connect the tablet to Willow Park OneDrive before the rest of the app can be used. This keeps the daily workflow simple and helps ensure PDFs are cloud-backed. If the nursery internet is genuinely unavailable, an explicit Continue offline option appears so risk assessments can still be completed and retained locally.
+
+
+## v3.5 — Outing Risk Assessments
+
+This version keeps the existing Daily Checks workflow and adds a separate **Outing Risk Assessments** feature. Staff can complete a pre-departure outing assessment using the same staff list and OneDrive connection. Outing records are stored locally in IndexedDB, generate their own PDF, and archive separately under `Apps/Willow Park Checks/Outing Risk Assessments/<Academic Year>/<Term>/`.
+
+The outing form includes the fields from Willow Park's existing outing assessment: person in charge, position, telephone, departure time, location/venue, route, transport, risks/hazards, controls/actions, accessibility considerations, maximum children, adult-to-child ratio, staff names and children's names. It also includes a short pre-departure checklist. The iPad is not expected to leave the nursery, so there is no live head-count logging feature.

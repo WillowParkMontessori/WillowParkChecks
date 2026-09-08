@@ -41,6 +41,18 @@
     </div>
 
     <div id="roomGrid" class="room-grid"></div>
+
+    <div class="card outing-home-card">
+      <div>
+        <div class="eyebrow">OUTINGS</div>
+        <h2>Outing Risk Assessments</h2>
+        <p class="muted">Complete a pre-departure risk assessment before taking children outside the nursery.</p>
+      </div>
+      <div class="outing-home-actions">
+        <button class="btn primary large" id="openOutingAssessment" type="button">+ Complete Outing Risk Assessment</button>
+        <button class="btn secondary" id="openOutingHistory" type="button">View outing history</button>
+      </div>
+    </div>
   </section>
 
   <section id="formView" class="view hidden">
@@ -83,6 +95,106 @@
         <button class="btn primary large" id="submitAssessment">Submit assessment</button>
       </div>
     </div>
+  </section>
+
+  <section id="outingView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" data-action="home">← Back</button></div>
+    <div class="card">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">OUTING RISK ASSESSMENT</div>
+          <h2>Pre-departure assessment</h2>
+        </div>
+        <span class="pill neutral">Draft</span>
+      </div>
+      <p class="muted">Complete this assessment before leaving the nursery. The iPad stays at Willow Park, so head counts during the outing are carried out by staff rather than logged live in the app.</p>
+
+      <div class="two-col">
+        <label class="field"><span>Date of R/A</span><input id="outingDate" type="date"></label>
+        <label class="field"><span>Person in charge of outing</span><select id="outingLead"><option value="">Select staff member</option></select></label>
+      </div>
+      <div class="two-col">
+        <label class="field"><span>Position</span><input id="outingPosition" type="text" placeholder="e.g. Classroom Teacher"></label>
+        <label class="field"><span>Telephone Number</span><input id="outingTelephone" type="tel" inputmode="tel"></label>
+      </div>
+      <div class="two-col">
+        <label class="field"><span>Departure Time from Nursery</span><input id="outingDeparture" type="time"></label>
+        <label class="field"><span>Expected return / arrival time back at nursery</span><input id="outingReturn" type="time"></label>
+      </div>
+      <label class="field"><span>Location &amp; venue</span><input id="outingLocation" type="text" placeholder="e.g. Sutcliffe Park"></label>
+      <label class="field"><span>Route taken</span><textarea id="outingRoute" rows="2" placeholder="Briefly describe the route"></textarea></label>
+      <label class="field"><span>Transport to be used</span><input id="outingTransport" type="text" placeholder="e.g. Walking"></label>
+
+      <div class="two-col">
+        <label class="field"><span>Maximum children</span><input id="outingMaxChildren" type="number" min="1" inputmode="numeric"></label>
+        <label class="field"><span>Adult to child ratio</span><input id="outingRatio" type="text" placeholder="e.g. 1:4"></label>
+      </div>
+
+      <div class="field">
+        <span>Staff member names attending</span>
+        <div id="outingStaffList" class="outing-staff-list"></div>
+      </div>
+      <label class="field"><span>Children’s Names</span><textarea id="outingChildren" rows="4" placeholder="Enter the children attending, one per line or separated by commas"></textarea></label>
+      <label class="field"><span>Accessibility issues for children with additional needs and disabilities</span><textarea id="outingAccessibility" rows="3" placeholder="Leave blank if none"></textarea></label>
+
+      <div class="outing-section">
+        <div class="section-head">
+          <div><div class="eyebrow">RISKS &amp; CONTROLS</div><h3>Common outing risks / hazards</h3></div>
+        </div>
+        <p class="muted">Mark each item as Applicable or Not applicable for this outing. Controls can be adjusted where needed.</p>
+        <div id="outingRiskList"></div>
+      </div>
+
+      <div class="outing-section">
+        <div class="section-head">
+          <div><div class="eyebrow">ADDITIONAL HAZARDS</div><h3>Anything specific to this outing?</h3></div>
+          <button class="btn secondary" id="addOutingHazard" type="button">+ Add hazard</button>
+        </div>
+        <div id="outingExtraHazards"></div>
+      </div>
+
+      <div class="outing-section">
+        <div class="eyebrow">FINAL CHECKS</div>
+        <h3>Before leaving the nursery</h3>
+        <div id="outingFinalChecks" class="outing-final-checks"></div>
+      </div>
+
+      <label class="field"><span>Other notes / concerns</span><textarea id="outingNotes" rows="3" placeholder="Leave blank if none"></textarea></label>
+
+      <div class="submitbar"><button class="btn primary large" id="submitOutingAssessment" type="button">Submit outing assessment</button></div>
+    </div>
+  </section>
+
+  <section id="outingCompletionView" class="view hidden">
+    <div class="card completion-card">
+      <div class="eyebrow">OUTING ASSESSMENT COMPLETED</div>
+      <h2>✓ Assessment saved</h2>
+      <p id="outingCompletionSummary" class="muted"></p>
+      <div id="outingCompletionCloudStatus" class="notice info"><b>✓ Assessment saved on this tablet</b><br>Preparing the OneDrive audit copy…</div>
+      <button class="btn primary hidden" id="retryOutingCloudUpload" type="button">Retry OneDrive upload</button>
+      <button class="btn secondary" id="downloadOutingPdf" type="button">Download PDF copy</button>
+      <button class="btn secondary" id="outingCompletionHome" type="button">Return to dashboard</button>
+      <p class="field-help">When OneDrive is connected, the PDF is filed automatically under Outing Risk Assessments.</p>
+    </div>
+  </section>
+
+  <section id="outingHistoryView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" data-action="home">← Back</button></div>
+    <div class="card">
+      <div class="section-head">
+        <div><div class="eyebrow">OUTING RECORDS</div><h2>Outing Risk Assessment history</h2></div>
+        <button class="btn primary" id="newOutingFromHistory" type="button">+ New assessment</button>
+      </div>
+      <div id="outingHistoryList"></div>
+    </div>
+  </section>
+
+  <section id="outingRecordView" class="view hidden">
+    <div class="toolbar">
+      <button class="btn secondary" id="backToOutingHistory" type="button">← Back</button>
+      <button class="btn secondary" id="printOutingRecord" type="button">Print / Save PDF</button>
+    </div>
+    <div class="card printable" id="outingRecordCard"></div>
   </section>
 
   <section id="completionView" class="view hidden">
@@ -192,7 +304,7 @@
         <button class="btn secondary hidden" id="cloudRetryPending">Upload pending assessments</button>
         <button class="btn secondary hidden" id="cloudDisconnect">Disconnect OneDrive</button>
       </div>
-      <p class="field-help">Microsoft sign-in is handled securely by Microsoft. No Microsoft password or client secret is stored in this app. PDFs are filed under <b>Apps → Willow Park Checks → Risk Assessments → Academic Year → Term → Area</b>.</p>
+      <p class="field-help">Microsoft sign-in is handled securely by Microsoft. No Microsoft password or client secret is stored in this app. Daily PDFs are filed under <b>Apps → Willow Park Checks → Risk Assessments → Academic Year → Term → Area</b>. Outing PDFs are filed separately under <b>Apps → Willow Park Checks → Outing Risk Assessments → Academic Year → Term</b>.</p>
     </div>
 
     <div class="card">

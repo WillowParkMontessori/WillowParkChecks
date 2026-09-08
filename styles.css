@@ -84,3 +84,26 @@ main{max-width:1050px;margin:0 auto;padding:18px 18px 48px}
 
 
 .cloud-gate{position:fixed;inset:0;z-index:120;background:#f5f8fb;display:flex;align-items:center;justify-content:center;padding:24px}.cloud-gate.hidden{display:none}.cloud-gate-panel{width:min(470px,100%);background:white;border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:34px 26px;text-align:center}.cloud-gate-panel h2{margin:8px 0 10px;color:var(--navy);font-size:28px}.cloud-gate-panel p{color:var(--muted);line-height:1.45}.cloud-gate-btn{width:100%;margin:14px 0 8px}.gate-offline{margin-top:14px;padding:14px;border-radius:12px;background:var(--amber-bg);border:1px solid #efd08b}.gate-offline.hidden{display:none}.gate-offline p{margin:0 0 10px;color:#6c4a00}.gate-offline .btn{width:100%}
+
+/* Outing Risk Assessments - additive feature */
+.outing-home-card{margin-top:18px;display:flex;justify-content:space-between;gap:20px;align-items:center;border-left:5px solid var(--blue)}
+.outing-home-card h2{color:var(--navy)}
+.outing-home-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.outing-section{margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
+.outing-section h3{margin:4px 0 8px;color:var(--navy)}
+.outing-staff-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:8px}
+.outing-check{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:#fafcfe}
+.outing-check input{width:20px;height:20px;margin-top:1px;flex:0 0 auto}
+.outing-check span{font-weight:700;line-height:1.35}
+.outing-risk-row{padding:15px 0;border-top:1px solid var(--line)}
+.outing-risk-row:first-child{border-top:0}
+.outing-risk-title{font-weight:800;color:var(--ink);margin-bottom:8px}
+.outing-control{margin-top:10px}
+.outing-control textarea{width:100%;border:1px solid #cfd9e4;border-radius:11px;background:white;padding:11px 12px;font-size:15px;resize:vertical}
+.outing-extra-row{border:1px solid var(--line);border-radius:14px;padding:13px;margin:10px 0;background:#fafcfe}
+.outing-extra-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.outing-extra-head strong{color:var(--navy)}
+.outing-extra-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.outing-final-checks{display:grid;grid-template-columns:1fr;gap:9px;margin-top:10px}
+.outing-history-destination{font-weight:800;color:var(--navy)}
+@media(max-width:760px){.outing-home-card{display:block}.outing-home-actions{justify-content:flex-start;margin-top:14px}.outing-staff-list,.outing-extra-grid{grid-template-columns:1fr}}
