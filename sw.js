@@ -1,4 +1,4 @@
-const CACHE="willow-park-checks-v3-6-fire-safety";
+const CACHE="willow-park-checks-v3-7-fire-safety-polish";
 const CORE=["./","./index.html","./styles.css","./app.js","./manifest.webmanifest"];
 const LIBS=[
   "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",

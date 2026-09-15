@@ -88,3 +88,10 @@ The outing form includes the fields from Willow Park's existing outing assessmen
 - Fire safety PDFs archive under `Apps/Willow Park Checks/Fire Safety/<Academic Year>/<Term>/`.
 - Adds visible progress feedback after Connect OneDrive is pressed, without changing the underlying MSAL/OneDrive authentication flow.
 - Existing Daily Risk Assessment and Outing Risk Assessment workflows are otherwise unchanged.
+
+
+## v3.7 — Fire/outing wording and UI polish
+- Weekly fire record now makes clear that all four smoke alarms are interlinked and records the detector from which the test was initiated.
+- Fire Drill Log evacuation-items wording updated for tablet-based attendance/registers.
+- Outing Risk Assessment “Applicable” selection now uses neutral light-blue highlighting rather than red.
+- Outing final pre-departure checks now use the app's standard readable sans-serif font.
