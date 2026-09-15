@@ -20,6 +20,30 @@ const OUTING_FINAL_CHECKS = [
 let outingRisks = [];
 let outingExtraHazards = [];
 let currentOutingRecordId = null;
+const FIRE_ALARM_LOCATIONS=["Classroom 1","Main Entrance / Hallway","Classroom 3","First-Floor Landing"];
+const WEEKLY_FIRE_QUESTIONS=[
+  "Did the selected smoke alarm activate correctly?",
+  "Did all four interlinked smoke alarms sound when tested?",
+  "Could the fire alarm be clearly heard throughout the nursery?",
+  "Was the kitchen carbon monoxide detector tested using its test button and did it operate correctly?",
+  "Are all fire escape routes and final exits clear and usable?",
+  "Are fire doors unobstructed and closing correctly?",
+  "Are the fire extinguishers and fire blanket present, accessible and apparently in service date?"
+];
+const FIRE_DRILL_QUESTIONS=[
+  {q:"Did children, staff and visitors respond appropriately to the alarm?"},
+  {q:"Were all areas checked?",note:"Including classrooms, Baby Room, Sleep Room, garden, toilets, office, kitchen and staff toilet, as applicable."},
+  {q:"Was the target evacuation time achieved?"},
+  {q:"Was an appropriate safe exit used?"},
+  {q:"Was the designated assembly area suitable and reached safely?"},
+  {q:"Were all children, staff and visitors accounted for?"},
+  {q:"Were the required evacuation items taken?",note:"Fire bag, nursery phone and relevant child/staff/visitor attendance information/registers."},
+  {q:"Was the fire evacuation bag stocked and ready?"}
+];
+let weeklyFireAnswers=[];
+let fireDrillAnswers=[];
+let currentFireRecordId=null;
+
 const OPERATIONS = ["Kitchen","Garden","Lower Bathroom","Upper Bathroom","Sleep Room"];
 const DB_NAME = "WillowParkChecksDB";
 const DB_VERSION = 2;
@@ -442,6 +466,30 @@ async function showOutingRecord(id){
   qs("outingRecordCard").innerHTML=`<div class="eyebrow">WILLOW PARK MONTESSORI</div><h2>Outing Risk Assessment</h2><p><b>Date:</b> ${niceDate(r.date)}<br><b>Person in charge:</b> ${escapeHtml(r.outing.lead)}<br><b>Position:</b> ${escapeHtml(r.outing.position)}<br><b>Telephone:</b> ${escapeHtml(r.outing.telephone)}<br><b>Departure:</b> ${escapeHtml(r.outing.departure)} &nbsp; <b>Expected return:</b> ${escapeHtml(r.outing.returnTime)}<br><b>Location & venue:</b> ${escapeHtml(r.outing.location)}<br><b>Route:</b> ${escapeHtml(r.outing.route)}<br><b>Transport:</b> ${escapeHtml(r.outing.transport)}<br><b>Maximum children:</b> ${escapeHtml(r.outing.maxChildren)} &nbsp; <b>Ratio:</b> ${escapeHtml(r.outing.ratio)}</p><h3>Staff attending</h3><p>${escapeHtml((r.outing.staff||[]).join(", "))}</p><h3>Children's Names</h3><p>${escapeHtml(r.outing.children).replace(/\n/g,"<br>")}</p><h3>Accessibility / additional needs</h3><p>${escapeHtml(r.outing.accessibility||"None recorded")}</p><h3>Common risks / hazards</h3><table><thead><tr><th>Risk / hazard</th><th>Applies?</th><th>Action / control</th></tr></thead><tbody>${risks}</tbody></table><h3>Additional hazards</h3>${extras}<h3>Final pre-departure checks</h3>${(r.outing.finalChecks||[]).map(x=>`<p>✓ ${escapeHtml(x)}</p>`).join("")}<h3>Other notes / concerns</h3><p>${escapeHtml(r.outing.notes||"None recorded")}</p><p><b>Completed:</b> ${new Date(r.submittedAt).toLocaleString("en-GB")}</p>`;switchView("outingRecordView");
 }
 
+
+function populateStaffSelect(id){const el=qs(id);if(!el)return;const staff=getSettings().staffMembers;el.innerHTML='<option value="">Select staff member</option>'+staff.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");}
+function fireChoiceHtml(i,a){return `<div class="choice-row"><button type="button" class="choice ${a.status==="Yes"?"selected safe":""}" data-fire-i="${i}" data-fire-status="Yes">✓ Yes</button><button type="button" class="choice ${a.status==="No"?"selected issue":""}" data-fire-i="${i}" data-fire-status="No">✕ No</button></div><div class="fire-issue-fields ${a.status==="No"?"show":""}"><label class="field"><span>Issue identified</span><textarea rows="2" data-fire-issue="${i}" placeholder="What was wrong?">${escapeHtml(a.issue||"")}</textarea></label><label class="field"><span>Action taken / further action required</span><textarea rows="2" data-fire-action="${i}" placeholder="What has been done or needs to happen?">${escapeHtml(a.action||"")}</textarea></label></div>`;}
+function bindFireAnswers(box,answers,render){box.querySelectorAll('[data-fire-status]').forEach(b=>b.addEventListener('click',e=>{const i=Number(e.currentTarget.dataset.fireI),s=e.currentTarget.dataset.fireStatus;answers[i].status=s;if(s!=="No"){answers[i].issue="";answers[i].action="";}render();}));box.querySelectorAll('[data-fire-issue]').forEach(x=>x.addEventListener('input',e=>answers[Number(e.target.dataset.fireIssue)].issue=e.target.value));box.querySelectorAll('[data-fire-action]').forEach(x=>x.addEventListener('input',e=>answers[Number(e.target.dataset.fireAction)].action=e.target.value));}
+function renderWeeklyFireQuestions(){const box=qs('weeklyFireQuestions');box.innerHTML=weeklyFireAnswers.map((a,i)=>`<div class="fire-question"><div class="fire-question-title">${i+1}. ${escapeHtml(a.q)}</div>${fireChoiceHtml(i,a)}</div>`).join('');bindFireAnswers(box,weeklyFireAnswers,renderWeeklyFireQuestions);}
+function openWeeklyFireCheck(){qs('fireCheckDate').value=localISO();populateStaffSelect('fireCheckBy');qs('fireCheckBy').value='';qs('fireAlarmLocation').value='';weeklyFireAnswers=WEEKLY_FIRE_QUESTIONS.map(q=>({q,status:'',issue:'',action:''}));renderWeeklyFireQuestions();switchView('weeklyFireView');}
+function validateWeeklyFire(){if(!qs('fireCheckBy').value)return 'Please select the manager/staff member completing the check.';if(!qs('fireCheckDate').value)return 'Please select the date.';if(!qs('fireAlarmLocation').value)return 'Please select the smoke alarm tested this week.';for(let i=0;i<weeklyFireAnswers.length;i++){const a=weeklyFireAnswers[i];if(!a.status)return `Please complete fire-safety check ${i+1}.`;if(a.status==='No'&&(!a.issue.trim()||!a.action.trim()))return `Check ${i+1} is marked No. Please record the issue and action taken / further action required.`;}return '';}
+async function submitWeeklyFireCheck(){const err=validateWeeklyFire();if(err){alert(err);return;}const rec={id:`fire-weekly-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,recordType:'fireWeekly',room:'Weekly Fire Alarm & Safety Check',date:qs('fireCheckDate').value,completedBy:qs('fireCheckBy').value,submittedAt:new Date().toISOString(),fire:{alarmLocation:qs('fireAlarmLocation').value,answers:JSON.parse(JSON.stringify(weeklyFireAnswers))},hasIssue:weeklyFireAnswers.some(a=>a.status==='No'),syncStatus:'pending',syncError:'',cloudPath:''};await saveFireRecord(rec);}
+function renderFireDrillQuestions(){const box=qs('fireDrillQuestions');box.innerHTML=fireDrillAnswers.map((a,i)=>`<div class="fire-question"><div class="fire-question-title">${i+1}. ${escapeHtml(a.q)}${a.note?`<small class="field-help">${escapeHtml(a.note)}</small>`:''}</div>${fireChoiceHtml(i,a)}</div>`).join('');bindFireAnswers(box,fireDrillAnswers,renderFireDrillQuestions);}
+function openFireDrill(){['drillLead','drillWarden','drillManagement'].forEach(populateStaffSelect);qs('drillDate').value=localISO();qs('drillTime').value=new Date().toTimeString().slice(0,5);qs('drillEvacTime').value='';qs('drillTargetTime').value='';qs('drillChildren').value='';qs('drillStaff').value='';qs('drillVisitors').value='0';qs('drillPlanned').value='';qs('drillAlarmType').value='';qs('drillComments').value='';['drillLead','drillWarden','drillManagement'].forEach(id=>qs(id).value='');fireDrillAnswers=FIRE_DRILL_QUESTIONS.map(x=>({...x,status:'',issue:'',action:''}));renderFireDrillQuestions();switchView('fireDrillView');}
+function validateFireDrill(){for(const [id,label] of [['drillDate','date'],['drillTime','time of drill'],['drillEvacTime','total evacuation time'],['drillTargetTime','target evacuation time'],['drillChildren','total children'],['drillStaff','total staff'],['drillVisitors','total visitors'],['drillPlanned','planned/unplanned'],['drillAlarmType','alarm type'],['drillLead','person leading the drill'],['drillWarden','Fire Warden'],['drillManagement','senior management reviewer']])if(!String(qs(id).value).trim())return `Please complete ${label}.`;for(let i=0;i<fireDrillAnswers.length;i++){const a=fireDrillAnswers[i];if(!a.status)return `Please complete drill check ${i+1}.`;if(a.status==='No'&&(!a.issue.trim()||!a.action.trim()))return `Drill check ${i+1} is marked No. Please record the issue and action taken / further action required.`;}return '';}
+async function submitFireDrill(){const err=validateFireDrill();if(err){alert(err);return;}const rec={id:`fire-drill-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,recordType:'fireDrill',room:'Fire Drill Log',date:qs('drillDate').value,completedBy:qs('drillLead').value,submittedAt:new Date().toISOString(),fire:{time:qs('drillTime').value,evacTime:qs('drillEvacTime').value.trim(),targetTime:qs('drillTargetTime').value.trim(),children:qs('drillChildren').value,staff:qs('drillStaff').value,visitors:qs('drillVisitors').value,planned:qs('drillPlanned').value,alarmType:qs('drillAlarmType').value,answers:JSON.parse(JSON.stringify(fireDrillAnswers)),comments:qs('drillComments').value.trim(),lead:qs('drillLead').value,warden:qs('drillWarden').value,management:qs('drillManagement').value},hasIssue:fireDrillAnswers.some(a=>a.status==='No'),syncStatus:'pending',syncError:'',cloudPath:''};await saveFireRecord(rec);}
+async function saveFireRecord(rec){await putRecord(rec);currentFireRecordId=rec.id;qs('fireCompletionSummary').innerHTML=`<b>${escapeHtml(rec.room)}</b><br>${niceDate(rec.date)}<br>Completed by ${escapeHtml(rec.completedBy)}`;if(!navigator.onLine){switchView('fireCompletionView');setFireCompletionCloudStatus('waiting','No internet connection. The record is safely stored locally and will remain pending for OneDrive.');return;}const session=await getCloudSession();if(!session){switchView('fireCompletionView');setFireCompletionCloudStatus('waiting','Microsoft needs this tablet to reconnect. The record is safely stored locally.');return;}showSavingOverlay('Saving fire safety record…','Creating the PDF and backing it up to Willow Park OneDrive.');try{await uploadFirePdf(rec);showSavingOverlay('✓ Saved & backed up','OneDrive has confirmed the fire safety PDF upload.',true);await new Promise(r=>setTimeout(r,850));hideSavingOverlay();switchView('fireCompletionView');setFireCompletionCloudStatus('synced');}catch(e){hideSavingOverlay();switchView('fireCompletionView');setFireCompletionCloudStatus('waiting',`Cloud upload did not complete: ${e.message}`);}}
+function setFireCompletionCloudStatus(state,detail=''){const el=qs('fireCompletionCloudStatus'),retry=qs('retryFireCloudUpload');if(state==='synced'){el.className='notice success';el.innerHTML='<b>☁ PDF backed up to Willow Park OneDrive</b><br>The fire safety record has been filed automatically.';retry.classList.add('hidden');}else if(state==='uploading'){el.className='notice info';el.innerHTML='<b>☁ Uploading PDF to OneDrive…</b><br>Please keep this screen open for a moment.';retry.classList.add('hidden');}else{el.className='notice warning';el.innerHTML=`<b>⚠ PDF waiting to upload</b><br>${escapeHtml(detail||'The record remains safely saved on this tablet.')}`;retry.classList.remove('hidden');}}
+function firePdfFilename(r){const [y,m,d]=r.date.split('-');return `${d}-${m}-${y} - ${r.recordType==='fireDrill'?'Fire Drill Log':'Weekly Fire Check'} - ${safePathPart(r.completedBy)}.pdf`;}
+async function makeFirePdfBlob(r){if(!window.jspdf?.jsPDF)throw new Error('PDF component is not available. Connect to the internet and reload once.');const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});const left=14,width=182;let y=15;const ensure=(n=12)=>{if(y+n>282){doc.addPage();y=15;header(false);}};const text=(label,value)=>{ensure(10);doc.setFont('helvetica','bold');doc.setFontSize(9.4);doc.text(label,left,y);const w=doc.getTextWidth(label)+2;doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(value??'—'),width-w);doc.text(lines,left+w,y);y+=Math.max(5,lines.length*4.1+1);};function header(full=true){doc.setTextColor(22,54,95);doc.setFont('helvetica','bold');doc.setFontSize(full?16:12);doc.text('WILLOW PARK MONTESSORI',left,y);y+=7;if(full){doc.setTextColor(25,25,25);doc.setFontSize(14);doc.text(r.recordType==='fireDrill'?'Fire Drill Log':'Weekly Fire Alarm & Safety Check',left,y);y+=8;}}header(true);text('Date:',niceDate(r.date));text('Completed by:',r.completedBy);if(r.recordType==='fireWeekly'){text('Smoke alarm tested:',r.fire.alarmLocation);}else{text('Time of drill:',r.fire.time);text('Total evacuation time:',r.fire.evacTime);text('Target evacuation time:',r.fire.targetTime);text('Total children:',r.fire.children);text('Total staff:',r.fire.staff);text('Total visitors:',r.fire.visitors);text('Drill:',r.fire.planned);text('Alarm:',r.fire.alarmType);}y+=3;doc.setTextColor(22,54,95);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text(r.recordType==='fireDrill'?'Points to reflect on':'Weekly checks',left,y);y+=6;doc.setTextColor(25,25,25);(r.fire.answers||[]).forEach((a,i)=>{const lines=doc.splitTextToSize(`${i+1}. ${a.q}`,150);ensure(lines.length*4+14);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(lines,left,y);doc.text(a.status,left+160,y);y+=lines.length*4+1;if(a.note){doc.setFont('helvetica','normal');doc.setFontSize(8);const n=doc.splitTextToSize(a.note,width-6);doc.text(n,left+3,y);y+=n.length*3.5+1;}if(a.status==='No'){doc.setFont('helvetica','normal');doc.setFontSize(8.5);const issue=doc.splitTextToSize(`Issue: ${a.issue}\nAction: ${a.action}`,width-6);doc.text(issue,left+3,y);y+=issue.length*3.7+3;}else y+=3;});if(r.recordType==='fireDrill'){y+=2;text('Other comments:',r.fire.comments||'None recorded');text('Person leading drill:',r.fire.lead);text('Fire Warden:',r.fire.warden);text('Senior management review:',r.fire.management);}ensure(10);doc.setTextColor(100);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text(`Submitted ${new Date(r.submittedAt).toLocaleString('en-GB')} • Generated by Willow Park Checks`,left,290);return doc.output('blob');}
+async function ensureFireArchiveFolder(){const st=getSettings();let folder=await getAppRoot();for(const name of ['Fire Safety',st.academicYear,st.currentTerm])folder=await ensureChildFolder(folder.id,name);return folder;}
+function fireCloudPath(r,filename=firePdfFilename(r)){const st=getSettings();return `Fire Safety/${safePathPart(st.academicYear)}/${safePathPart(st.currentTerm)}/${safePathPart(filename)}`;}
+async function uploadFirePdf(rec){const session=await getCloudSession();if(!session)throw new Error('this tablet is not connected to Willow Park OneDrive');const blob=await makeFirePdfBlob(rec),folder=await ensureFireArchiveFolder();let filename=firePdfFilename(rec);const existing=await findChildItem(folder.id,safePathPart(filename));if(existing){const t=new Date(rec.submittedAt),hh=String(t.getHours()).padStart(2,'0'),mm=String(t.getMinutes()).padStart(2,'0'),ss=String(t.getSeconds()).padStart(2,'0');filename=filename.replace(/\.pdf$/i,` - ${hh}-${mm}-${ss}.pdf`);}const uploaded=await uploadBlobToFolder(folder.id,filename,blob);rec.syncStatus='synced';rec.syncError='';rec.syncedAt=new Date().toISOString();rec.cloudPath=fireCloudPath(rec,uploaded?.name||filename);rec.cloudWebUrl=uploaded?.webUrl||'';await putRecord(rec);return rec.cloudPath;}
+async function retryCurrentFireUpload(){const r=await getRecord(currentFireRecordId);if(!r)return;if(!navigator.onLine){alert('This tablet is offline. Try again when it has internet.');return;}setFireCompletionCloudStatus('uploading');try{await uploadFirePdf(r);setFireCompletionCloudStatus('synced');toast('Fire safety PDF backed up to Willow Park OneDrive.');}catch(e){setFireCompletionCloudStatus('waiting',e.message);}}
+async function downloadCurrentFirePdf(){const r=await getRecord(currentFireRecordId);if(!r)return;try{downloadBlob(await makeFirePdfBlob(r),firePdfFilename(r));toast('Fire safety PDF downloaded.');}catch(e){alert('Could not create PDF: '+e.message);}}
+async function showFireHistory(){switchView('fireHistoryView');const rows=(await allRecords()).filter(r=>r.recordType==='fireWeekly'||r.recordType==='fireDrill');const list=qs('fireHistoryList');if(!rows.length){list.innerHTML='<p class="muted">No fire safety records have been completed on this tablet yet.</p>';return;}list.innerHTML=rows.map(r=>`<div class="history-item"><div><div class="history-title">${escapeHtml(r.room)}</div><div class="history-meta">${niceDate(r.date)} • ${escapeHtml(r.completedBy)} ${r.hasIssue?'• ⚠ Issue recorded':''}</div></div><div class="history-actions"><span class="pill ${r.syncStatus==='synced'?'good':'neutral'}">${r.syncStatus==='synced'?'Cloud backed up':'Waiting for cloud'}</span><button class="btn secondary" data-open-fire="${escapeHtml(r.id)}">Open</button></div></div>`).join('');list.querySelectorAll('[data-open-fire]').forEach(b=>b.addEventListener('click',()=>showFireRecord(b.dataset.openFire)));}
+async function showFireRecord(id){const r=await getRecord(id);if(!r)return;currentFireRecordId=id;const rows=(r.fire.answers||[]).map(a=>`<tr><td>${escapeHtml(a.q)}${a.note?`<br><small>${escapeHtml(a.note)}</small>`:''}</td><td><b>${escapeHtml(a.status)}</b></td><td>${a.status==='No'?`<b>Issue:</b> ${escapeHtml(a.issue)}<br><b>Action:</b> ${escapeHtml(a.action)}`:'—'}</td></tr>`).join('');let details=r.recordType==='fireWeekly'?`<p><b>Date:</b> ${niceDate(r.date)}<br><b>Completed by:</b> ${escapeHtml(r.completedBy)}<br><b>Smoke alarm tested:</b> ${escapeHtml(r.fire.alarmLocation)}</p>`:`<p><b>Date:</b> ${niceDate(r.date)} &nbsp; <b>Time:</b> ${escapeHtml(r.fire.time)}<br><b>Total evacuation time:</b> ${escapeHtml(r.fire.evacTime)} &nbsp; <b>Target:</b> ${escapeHtml(r.fire.targetTime)}<br><b>Children:</b> ${escapeHtml(r.fire.children)} &nbsp; <b>Staff:</b> ${escapeHtml(r.fire.staff)} &nbsp; <b>Visitors:</b> ${escapeHtml(r.fire.visitors)}<br><b>Drill:</b> ${escapeHtml(r.fire.planned)} &nbsp; <b>Alarm:</b> ${escapeHtml(r.fire.alarmType)}</p>`;let sign=r.recordType==='fireDrill'?`<h3>Comments / sign-off</h3><p>${escapeHtml(r.fire.comments||'None recorded')}</p><p><b>Person leading drill:</b> ${escapeHtml(r.fire.lead)}<br><b>Fire Warden:</b> ${escapeHtml(r.fire.warden)}<br><b>Senior management review:</b> ${escapeHtml(r.fire.management)}</p>`:'';qs('fireRecordCard').innerHTML=`<div class="eyebrow">WILLOW PARK MONTESSORI</div><h2>${escapeHtml(r.room)}</h2>${details}<table><thead><tr><th>Check</th><th>Result</th><th>Action if required</th></tr></thead><tbody>${rows}</tbody></table>${sign}<p><b>Submitted:</b> ${new Date(r.submittedAt).toLocaleString('en-GB')}</p>`;switchView('fireRecordView');}
+
 async function makeDailyPdfBlob(r){
   if(!window.jspdf?.jsPDF) throw new Error("PDF component is not available. Connect to the internet and reload once.");
   const {jsPDF}=window.jspdf;
@@ -569,9 +617,14 @@ async function refreshCloudStatus(){
   }
   updateConnectionPill();
 }
+
+let cloudProgressTimer=null;
+function startCloudConnectProgress(){const wrap=qs('cloudConnectProgress'),bar=qs('cloudConnectProgressBar'),txt=qs('cloudConnectProgressText');if(!wrap||!bar)return;wrap.classList.remove('hidden');bar.style.width='6%';if(txt)txt.textContent='Connecting to OneDrive…';let value=6;clearInterval(cloudProgressTimer);cloudProgressTimer=setInterval(()=>{value=Math.min(90,value+(value<55?8:value<78?4:1));bar.style.width=value+'%';},350);}
+function stopCloudConnectProgress(success=false){clearInterval(cloudProgressTimer);const wrap=qs('cloudConnectProgress'),bar=qs('cloudConnectProgressBar'),txt=qs('cloudConnectProgressText');if(!wrap||!bar)return;if(success){bar.style.width='100%';if(txt)txt.textContent='Connected';setTimeout(()=>wrap.classList.add('hidden'),450);}else wrap.classList.add('hidden');}
 async function cloudConnect(){
+  startCloudConnectProgress();
   const client=await initMicrosoft();
-  if(!client){alert("Microsoft sign-in is not available. Connect to the internet and reload once.");return}
+  if(!client){stopCloudConnectProgress(false);alert("Microsoft sign-in is not available. Connect to the internet and reload once.");return}
   qs("cloudConnect").disabled=true;qs("cloudConnect").textContent="Opening Microsoft sign-in…";
   const topConnect=qs("topCloudConnect"); if(topConnect){topConnect.disabled=true;topConnect.textContent="Connecting…";}
   const gateConnect=qs("gateCloudConnect"); if(gateConnect){gateConnect.disabled=true;gateConnect.textContent="Connecting…";}
@@ -585,6 +638,7 @@ async function cloudConnect(){
     qs("cloudConnect").disabled=false;qs("cloudConnect").textContent="Connect OneDrive";
     if(topConnect){topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
     if(gateConnect){gateConnect.disabled=false;gateConnect.textContent="Connect OneDrive";}
+    stopCloudConnectProgress(false);
     alert("Could not start Microsoft sign-in: "+e.message);
   }
 }
@@ -683,7 +737,7 @@ async function retryPendingCloudUploads(){
   const recs=(await allRecords()).filter(r=>r.syncStatus!=="synced");
   if(!recs.length){toast("No assessments are waiting to upload.");return}
   qs("cloudRetryPending").disabled=true;qs("cloudRetryPending").textContent="Uploading…";
-  let ok=0,failed=0;for(const r of recs){try{if(r.recordType==="outing")await uploadOutingPdf(r);else await uploadRecordPdf(r);ok++}catch(e){r.syncStatus="error";r.syncError=e.message;await putRecord(r);failed++}}
+  let ok=0,failed=0;for(const r of recs){try{if(r.recordType==="outing")await uploadOutingPdf(r);else if(r.recordType==="fireWeekly"||r.recordType==="fireDrill")await uploadFirePdf(r);else await uploadRecordPdf(r);ok++}catch(e){r.syncStatus="error";r.syncError=e.message;await putRecord(r);failed++}}
   qs("cloudRetryPending").disabled=false;qs("cloudRetryPending").textContent="Upload pending assessments";
   toast(`${ok} uploaded${failed?`, ${failed} still waiting`:""}.`);await renderHome();
 }
@@ -776,6 +830,7 @@ function updateConnectionPill(){
       pill.className="pill neutral";pill.textContent="Offline • saved locally";
       if(topConnect){topConnect.classList.remove("hidden");topConnect.disabled=true;topConnect.textContent="Connect OneDrive";}
     }else if(session){
+      stopCloudConnectProgress(true);
       pill.className="pill good";pill.textContent="Online • cloud connected";
       if(topConnect){topConnect.classList.add("hidden");topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
     }else{
@@ -846,6 +901,16 @@ document.addEventListener("click",e=>{
   const x=a.dataset.action;
   if(x==="home")goHome(); if(x==="dashboard")showDashboard(); if(x==="history")showHistory(); if(x==="settings"){switchView("settingsView");loadSettingsUI()}
 });
+qs("openWeeklyFireCheck").addEventListener("click",openWeeklyFireCheck);
+qs("openFireDrillLog").addEventListener("click",openFireDrill);
+qs("openFireHistory").addEventListener("click",showFireHistory);
+qs("submitWeeklyFireCheck").addEventListener("click",submitWeeklyFireCheck);
+qs("submitFireDrill").addEventListener("click",submitFireDrill);
+qs("retryFireCloudUpload").addEventListener("click",retryCurrentFireUpload);
+qs("downloadFirePdf").addEventListener("click",downloadCurrentFirePdf);
+qs("fireCompletionHome").addEventListener("click",goHome);
+qs("backToFireHistory").addEventListener("click",showFireHistory);
+qs("printFireRecord").addEventListener("click",()=>window.print());
 qs("openOutingAssessment").addEventListener("click",openOutingForm);
 qs("openOutingHistory").addEventListener("click",showOutingHistory);
 qs("newOutingFromHistory").addEventListener("click",openOutingForm);

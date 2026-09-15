@@ -80,3 +80,11 @@ On normal online startup, staff must connect the tablet to Willow Park OneDrive 
 This version keeps the existing Daily Checks workflow and adds a separate **Outing Risk Assessments** feature. Staff can complete a pre-departure outing assessment using the same staff list and OneDrive connection. Outing records are stored locally in IndexedDB, generate their own PDF, and archive separately under `Apps/Willow Park Checks/Outing Risk Assessments/<Academic Year>/<Term>/`.
 
 The outing form includes the fields from Willow Park's existing outing assessment: person in charge, position, telephone, departure time, location/venue, route, transport, risks/hazards, controls/actions, accessibility considerations, maximum children, adult-to-child ratio, staff names and children's names. It also includes a short pre-departure checklist. The iPad is not expected to leave the nursery, so there is no live head-count logging feature.
+
+
+## v3.6 — Fire Safety records
+- Adds a minimal Weekly Fire Alarm & Safety Check with rotating test location for the four interlinked smoke alarms, kitchen CO detector test, escape routes, fire doors and firefighting equipment.
+- Adds a digital Fire Drill Log based on Willow Park's existing paper sheet.
+- Fire safety PDFs archive under `Apps/Willow Park Checks/Fire Safety/<Academic Year>/<Term>/`.
+- Adds visible progress feedback after Connect OneDrive is pressed, without changing the underlying MSAL/OneDrive authentication flow.
+- Existing Daily Risk Assessment and Outing Risk Assessment workflows are otherwise unchanged.

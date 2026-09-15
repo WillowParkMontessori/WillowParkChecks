@@ -107,3 +107,8 @@ main{max-width:1050px;margin:0 auto;padding:18px 18px 48px}
 .outing-final-checks{display:grid;grid-template-columns:1fr;gap:9px;margin-top:10px}
 .outing-history-destination{font-weight:800;color:var(--navy)}
 @media(max-width:760px){.outing-home-card{display:block}.outing-home-actions{justify-content:flex-start;margin-top:14px}.outing-staff-list,.outing-extra-grid{grid-template-columns:1fr}}
+
+
+/* Fire Safety - additive feature */
+.fire-home-card{margin-top:18px;display:flex;justify-content:space-between;gap:20px;align-items:center;border-left:5px solid #b5483f}.fire-home-card h2{color:var(--navy)}.fire-home-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.fire-question{padding:15px 0;border-top:1px solid var(--line)}.fire-question:first-child{border-top:0}.fire-question-title{font-weight:780;line-height:1.35;margin-bottom:9px}.fire-issue-fields{display:none;margin-top:10px;padding:12px;border-radius:12px;background:#fff8f7;border:1px solid #efc3bf}.fire-issue-fields.show{display:block}.connect-progress{margin:12px 0 2px}.connect-progress.hidden{display:none}.connect-progress-track{height:10px;background:#e4eaf0;border-radius:999px;overflow:hidden}.connect-progress-bar{height:100%;width:6%;background:var(--navy);border-radius:999px;transition:width .35s ease}.connect-progress .field-help{text-align:center;margin-top:8px}.notice.success{background:var(--green-bg);border:1px solid #add8c3;color:var(--green)}
+@media(max-width:760px){.fire-home-card{display:block}.fire-home-actions{justify-content:flex-start;margin-top:14px}.three-col{grid-template-columns:1fr}}

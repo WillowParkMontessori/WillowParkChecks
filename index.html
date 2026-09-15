@@ -53,6 +53,19 @@
         <button class="btn secondary" id="openOutingHistory" type="button">View outing history</button>
       </div>
     </div>
+
+    <div class="card fire-home-card">
+      <div>
+        <div class="eyebrow">FIRE SAFETY</div>
+        <h2>Fire Safety Records</h2>
+        <p class="muted">Complete the weekly alarm/safety check and record fire drills.</p>
+      </div>
+      <div class="fire-home-actions">
+        <button class="btn primary large" id="openWeeklyFireCheck" type="button">Weekly Fire Alarm &amp; Safety Check</button>
+        <button class="btn secondary" id="openFireDrillLog" type="button">Fire Drill Log</button>
+        <button class="btn secondary" id="openFireHistory" type="button">View fire safety history</button>
+      </div>
+    </div>
   </section>
 
   <section id="formView" class="view hidden">
@@ -163,6 +176,50 @@
 
       <div class="submitbar"><button class="btn primary large" id="submitOutingAssessment" type="button">Submit outing assessment</button></div>
     </div>
+  </section>
+
+  <section id="weeklyFireView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" data-action="home">← Back</button></div>
+    <div class="card">
+      <div class="section-head"><div><div class="eyebrow">FIRE SAFETY</div><h2>Weekly Fire Alarm &amp; Safety Check</h2></div><span class="pill neutral">Weekly</span></div>
+      <div class="two-col">
+        <label class="field"><span>Date</span><input id="fireCheckDate" type="date"></label>
+        <label class="field"><span>Completed by</span><select id="fireCheckBy"><option value="">Select staff member</option></select></label>
+      </div>
+      <label class="field"><span>Smoke alarm tested this week</span><select id="fireAlarmLocation">
+        <option value="">Select alarm</option><option>Classroom 1</option><option>Main Entrance / Hallway</option><option>Classroom 3</option><option>First-Floor Landing</option>
+      </select><small class="field-help">Rotate the alarm tested each week: Classroom 1 → Main Entrance / Hallway → Classroom 3 → First-Floor Landing.</small></label>
+      <div id="weeklyFireQuestions"></div>
+      <div class="submitbar"><button class="btn primary large" id="submitWeeklyFireCheck" type="button">Submit weekly fire check</button></div>
+    </div>
+  </section>
+
+  <section id="fireDrillView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" data-action="home">← Back</button></div>
+    <div class="card">
+      <div class="section-head"><div><div class="eyebrow">FIRE SAFETY</div><h2>Fire Drill Log</h2></div><span class="pill neutral">Drill record</span></div>
+      <div class="two-col"><label class="field"><span>Date</span><input id="drillDate" type="date"></label><label class="field"><span>Time of drill</span><input id="drillTime" type="time"></label></div>
+      <div class="two-col"><label class="field"><span>Total evacuation time</span><input id="drillEvacTime" type="text" placeholder="e.g. 2 min 15 sec"></label><label class="field"><span>Target evacuation time</span><input id="drillTargetTime" type="text" placeholder="e.g. 3 minutes"></label></div>
+      <div class="three-col"><label class="field"><span>Total children</span><input id="drillChildren" type="number" min="0" inputmode="numeric"></label><label class="field"><span>Total staff</span><input id="drillStaff" type="number" min="0" inputmode="numeric"></label><label class="field"><span>Total visitors</span><input id="drillVisitors" type="number" min="0" inputmode="numeric" value="0"></label></div>
+      <div class="two-col"><label class="field"><span>Drill</span><select id="drillPlanned"><option value="">Select</option><option>Planned</option><option>Unplanned</option></select></label><label class="field"><span>Alarm</span><select id="drillAlarmType"><option value="">Select</option><option>Practice alarm</option><option>Actual alarm</option></select></label></div>
+      <div class="outing-section"><div class="eyebrow">POINTS TO REFLECT ON</div><h3>Evacuation checks</h3><div id="fireDrillQuestions"></div></div>
+      <label class="field"><span>Other comments / observations (optional)</span><textarea id="drillComments" rows="3" placeholder="Leave blank if none"></textarea></label>
+      <div class="two-col"><label class="field"><span>Person leading drill</span><select id="drillLead"><option value="">Select staff member</option></select></label><label class="field"><span>Fire Warden</span><select id="drillWarden"><option value="">Select staff member</option></select></label></div>
+      <label class="field"><span>Senior management review</span><select id="drillManagement"><option value="">Select manager / staff member</option></select><small class="field-help">Digital submission records the date and time; a drawn signature is not required in the app.</small></label>
+      <div class="submitbar"><button class="btn primary large" id="submitFireDrill" type="button">Submit fire drill log</button></div>
+    </div>
+  </section>
+
+  <section id="fireCompletionView" class="view hidden">
+    <div class="card completion-card"><div class="eyebrow">FIRE SAFETY RECORD COMPLETED</div><h2>✓ Record saved</h2><p id="fireCompletionSummary" class="muted"></p><div id="fireCompletionCloudStatus" class="notice info"><b>✓ Record saved on this tablet</b><br>Preparing the OneDrive audit copy…</div><button class="btn primary hidden" id="retryFireCloudUpload" type="button">Retry OneDrive upload</button><button class="btn secondary" id="downloadFirePdf" type="button">Download PDF copy</button><button class="btn secondary" id="fireCompletionHome" type="button">Return to dashboard</button><p class="field-help">When OneDrive is connected, the PDF is filed automatically under Fire Safety.</p></div>
+  </section>
+
+  <section id="fireHistoryView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" data-action="home">← Back</button></div><div class="card"><div class="section-head"><div><div class="eyebrow">FIRE SAFETY RECORDS</div><h2>Fire safety history</h2></div></div><div id="fireHistoryList"></div></div>
+  </section>
+
+  <section id="fireRecordView" class="view hidden">
+    <div class="toolbar"><button class="btn secondary" id="backToFireHistory" type="button">← Back</button><button class="btn secondary" id="printFireRecord" type="button">Print / Save PDF</button></div><div class="card printable" id="fireRecordCard"></div>
   </section>
 
   <section id="outingCompletionView" class="view hidden">
@@ -304,7 +361,7 @@
         <button class="btn secondary hidden" id="cloudRetryPending">Upload pending assessments</button>
         <button class="btn secondary hidden" id="cloudDisconnect">Disconnect OneDrive</button>
       </div>
-      <p class="field-help">Microsoft sign-in is handled securely by Microsoft. No Microsoft password or client secret is stored in this app. Daily PDFs are filed under <b>Apps → Willow Park Checks → Risk Assessments → Academic Year → Term → Area</b>. Outing PDFs are filed separately under <b>Apps → Willow Park Checks → Outing Risk Assessments → Academic Year → Term</b>.</p>
+      <p class="field-help">Microsoft sign-in is handled securely by Microsoft. No Microsoft password or client secret is stored in this app. Daily PDFs are filed under <b>Apps → Willow Park Checks → Risk Assessments → Academic Year → Term → Area</b>. Outing PDFs are filed separately under <b>Apps → Willow Park Checks → Outing Risk Assessments → Academic Year → Term</b>. Fire safety PDFs are filed under <b>Apps → Willow Park Checks → Fire Safety → Academic Year → Term</b>.</p>
     </div>
 
     <div class="card">
@@ -322,6 +379,7 @@
     <h2 id="oneDriveGateTitle">Connect to OneDrive</h2>
     <p id="oneDriveGateText">Connect this tablet to Willow Park OneDrive before completing today's checks.</p>
     <button class="btn primary large cloud-gate-btn" id="gateCloudConnect" type="button">Connect OneDrive</button>
+    <div id="cloudConnectProgress" class="connect-progress hidden" aria-live="polite"><div class="connect-progress-track"><div id="cloudConnectProgressBar" class="connect-progress-bar"></div></div><div id="cloudConnectProgressText" class="field-help">Connecting to OneDrive…</div></div>
     <div id="gateOfflineBox" class="gate-offline hidden">
       <p><b>No internet connection.</b> Checks can still be completed and saved safely on this tablet.</p>
       <button class="btn secondary" id="gateContinueOffline" type="button">Continue offline</button>
