@@ -95,3 +95,8 @@ The outing form includes the fields from Willow Park's existing outing assessmen
 - Fire Drill Log evacuation-items wording updated for tablet-based attendance/registers.
 - Outing Risk Assessment “Applicable” selection now uses neutral light-blue highlighting rather than red.
 - Outing final pre-departure checks now use the app's standard readable sans-serif font.
+
+
+### v3.8 PDF display fix
+- Fixed abnormal letter spacing in the Outing Risk Assessment final pre-departure checklist PDF by removing the unsupported Unicode tick glyph and using standard Helvetica-safe list markers.
+- Keeps the final pre-departure checklist together on one PDF page where space permits.
