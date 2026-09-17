@@ -1,4 +1,4 @@
-const CACHE="willow-park-checks-v3-9-shared-daily-status";
+const CACHE="willow-park-checks-v3-10-shared-history-progress";
 const CORE=["./","./index.html","./styles.css","./app.js","./manifest.webmanifest"];
 const LIBS=[
   "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",

@@ -104,3 +104,11 @@ The outing form includes the fields from Willow Park's existing outing assessmen
 
 ## v3.9 – Shared daily completion status
 When OneDrive is connected, the Today’s checks screen now reads the current term’s shared OneDrive Risk Assessments folders and marks a daily area complete when today’s PDF exists, regardless of which nursery tablet submitted it. Local IndexedDB remains the offline/pending-upload fallback. Shared status is refreshed when returning to the home screen, with a short 15-second cache to avoid unnecessary Graph requests.
+
+
+## v3.10
+- Outing history now merges records from the shared OneDrive Outing Risk Assessments term folder with records saved on the current tablet.
+- Fire safety history now merges records from the shared OneDrive Fire Safety term folder with records saved on the current tablet.
+- Cloud-only records can be opened from their OneDrive PDF link.
+- Restored visible OneDrive connection progress across the Microsoft sign-in redirect.
+- Daily shared completion sync from v3.9 is unchanged.

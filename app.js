@@ -468,11 +468,27 @@ async function uploadOutingPdf(rec){
   const session=await getCloudSession();if(!session)throw new Error("this tablet is not connected to Willow Park OneDrive");const blob=await makeOutingPdfBlob(rec),folder=await ensureOutingArchiveFolder();let filename=outingPdfFilename(rec);const existing=await findChildItem(folder.id,safePathPart(filename));if(existing){const t=new Date(rec.submittedAt),hh=String(t.getHours()).padStart(2,"0"),mm=String(t.getMinutes()).padStart(2,"0"),ss=String(t.getSeconds()).padStart(2,"0");filename=filename.replace(/\.pdf$/i,` - ${hh}-${mm}-${ss}.pdf`);}const uploaded=await uploadBlobToFolder(folder.id,filename,blob);rec.syncStatus="synced";rec.syncError="";rec.syncedAt=new Date().toISOString();rec.cloudPath=outingCloudPath(rec,uploaded?.name||filename);rec.cloudWebUrl=uploaded?.webUrl||"";await putRecord(rec);return rec.cloudPath;
 }
 async function downloadCurrentOutingPdf(){const r=await getRecord(currentOutingRecordId);if(!r)return;try{const blob=await makeOutingPdfBlob(r);downloadBlob(blob,outingPdfFilename(r));toast("Outing PDF downloaded.");}catch(e){alert("Could not create PDF: "+e.message);}}
+async function listCloudArchiveFiles(kind){
+  const session=await getCloudSession(); if(!session) return [];
+  try{
+    const folder=kind==="outing"?await ensureOutingArchiveFolder():await ensureFireArchiveFolder();
+    const data=await graphFetch(`/me/drive/items/${encodeURIComponent(folder.id)}/children?$select=id,name,file,webUrl,createdDateTime,lastModifiedDateTime&$top=200`);
+    return (data.value||[]).filter(x=>x.file && /\.pdf$/i.test(x.name||""));
+  }catch(e){console.warn(`Could not load ${kind} cloud history`,e);return [];}
+}
+function cloudFileDate(name){const m=String(name||"").match(/^(\d{2})-(\d{2})-(\d{4})/);return m?`${m[3]}-${m[2]}-${m[1]}`:"";}
+function outingCloudLabel(name){let x=String(name||"").replace(/\.pdf$/i,"").replace(/^\d{2}-\d{2}-\d{4}\s*-\s*/,"");x=x.replace(/\s*-\s*\d{2}-\d{2}-\d{2}$/,'');const bits=x.split(/\s+-\s+/);return {location:bits[0]||"Outing",lead:bits.slice(1).join(" - ")||""};}
 async function showOutingHistory(){
-  switchView("outingHistoryView");const rows=(await allRecords()).filter(r=>r.recordType==="outing");const list=qs("outingHistoryList");
-  if(!rows.length){list.innerHTML='<p class="muted">No outing risk assessments have been completed on this tablet yet.</p>';return;}
-  list.innerHTML=rows.map(r=>`<div class="history-item"><div><div class="outing-history-destination">${escapeHtml(r.outing?.location||"Outing")}</div><div class="history-meta">${niceDate(r.date)} • ${escapeHtml(r.outing?.lead||r.completedBy)} • Departure ${escapeHtml(r.outing?.departure||"")} • ${r.syncStatus==="synced"?"OneDrive backed up":"Saved locally"}</div></div><div class="history-actions"><span class="pill good">Completed</span><button class="btn secondary smallbtn" data-open-outing="${r.id}">Open</button></div></div>`).join("");
+  switchView("outingHistoryView");const list=qs("outingHistoryList");list.innerHTML='<p class="muted">Loading outing history…</p>';
+  const rows=(await allRecords()).filter(r=>r.recordType==="outing");
+  const cloud=await listCloudArchiveFiles("outing");
+  const localNames=new Set(rows.map(r=>(r.cloudPath||"").split("/").pop()).filter(Boolean));
+  const cloudOnly=cloud.filter(x=>!localNames.has(x.name));
+  const items=[...rows.map(r=>({type:"local",date:r.date,sort:r.submittedAt||r.date,r})),...cloudOnly.map(x=>({type:"cloud",date:cloudFileDate(x.name),sort:x.lastModifiedDateTime||x.createdDateTime||cloudFileDate(x.name),x}))].sort((a,b)=>String(b.sort).localeCompare(String(a.sort)));
+  if(!items.length){list.innerHTML='<p class="muted">No outing risk assessments have been completed yet.</p>';return;}
+  list.innerHTML=items.map(item=>{if(item.type==="local"){const r=item.r;return `<div class="history-item"><div><div class="outing-history-destination">${escapeHtml(r.outing?.location||"Outing")}</div><div class="history-meta">${niceDate(r.date)} • ${escapeHtml(r.outing?.lead||r.completedBy)} • Departure ${escapeHtml(r.outing?.departure||"")} • ${r.syncStatus==="synced"?"OneDrive backed up":"Saved locally"}</div></div><div class="history-actions"><span class="pill good">Completed</span><button class="btn secondary smallbtn" data-open-outing="${r.id}">Open</button></div></div>`;}const x=item.x,l=outingCloudLabel(x.name);return `<div class="history-item"><div><div class="outing-history-destination">${escapeHtml(l.location)}</div><div class="history-meta">${item.date?niceDate(item.date)+" • ":""}${escapeHtml(l.lead)} • OneDrive shared record</div></div><div class="history-actions"><span class="pill good">Cloud backed up</span>${x.webUrl?`<button class="btn secondary smallbtn" data-cloud-url="${escapeHtml(x.webUrl)}">Open PDF</button>`:""}</div></div>`;}).join("");
   list.querySelectorAll("[data-open-outing]").forEach(b=>b.addEventListener("click",()=>showOutingRecord(b.dataset.openOuting)));
+  list.querySelectorAll("[data-cloud-url]").forEach(b=>b.addEventListener("click",()=>window.open(b.dataset.cloudUrl,"_blank","noopener")));
 }
 async function showOutingRecord(id){
   const r=await getRecord(id);if(!r)return;currentOutingRecordId=id;const risks=(r.outing.risks||[]).map(x=>`<tr><td>${escapeHtml(x.risk)}</td><td>${x.applicable?"Applicable":"Not applicable"}</td><td>${x.applicable?escapeHtml(x.control):"—"}</td></tr>`).join("");const extras=(r.outing.extraHazards||[]).map(x=>`<p><b>${escapeHtml(x.risk)}</b><br>${escapeHtml(x.control)}</p>`).join("")||"<p>None recorded.</p>";
@@ -500,7 +516,7 @@ function fireCloudPath(r,filename=firePdfFilename(r)){const st=getSettings();ret
 async function uploadFirePdf(rec){const session=await getCloudSession();if(!session)throw new Error('this tablet is not connected to Willow Park OneDrive');const blob=await makeFirePdfBlob(rec),folder=await ensureFireArchiveFolder();let filename=firePdfFilename(rec);const existing=await findChildItem(folder.id,safePathPart(filename));if(existing){const t=new Date(rec.submittedAt),hh=String(t.getHours()).padStart(2,'0'),mm=String(t.getMinutes()).padStart(2,'0'),ss=String(t.getSeconds()).padStart(2,'0');filename=filename.replace(/\.pdf$/i,` - ${hh}-${mm}-${ss}.pdf`);}const uploaded=await uploadBlobToFolder(folder.id,filename,blob);rec.syncStatus='synced';rec.syncError='';rec.syncedAt=new Date().toISOString();rec.cloudPath=fireCloudPath(rec,uploaded?.name||filename);rec.cloudWebUrl=uploaded?.webUrl||'';await putRecord(rec);return rec.cloudPath;}
 async function retryCurrentFireUpload(){const r=await getRecord(currentFireRecordId);if(!r)return;if(!navigator.onLine){alert('This tablet is offline. Try again when it has internet.');return;}setFireCompletionCloudStatus('uploading');try{await uploadFirePdf(r);setFireCompletionCloudStatus('synced');toast('Fire safety PDF backed up to Willow Park OneDrive.');}catch(e){setFireCompletionCloudStatus('waiting',e.message);}}
 async function downloadCurrentFirePdf(){const r=await getRecord(currentFireRecordId);if(!r)return;try{downloadBlob(await makeFirePdfBlob(r),firePdfFilename(r));toast('Fire safety PDF downloaded.');}catch(e){alert('Could not create PDF: '+e.message);}}
-async function showFireHistory(){switchView('fireHistoryView');const rows=(await allRecords()).filter(r=>r.recordType==='fireWeekly'||r.recordType==='fireDrill');const list=qs('fireHistoryList');if(!rows.length){list.innerHTML='<p class="muted">No fire safety records have been completed on this tablet yet.</p>';return;}list.innerHTML=rows.map(r=>`<div class="history-item"><div><div class="history-title">${escapeHtml(r.room)}</div><div class="history-meta">${niceDate(r.date)} • ${escapeHtml(r.completedBy)} ${r.hasIssue?'• ⚠ Issue recorded':''}</div></div><div class="history-actions"><span class="pill ${r.syncStatus==='synced'?'good':'neutral'}">${r.syncStatus==='synced'?'Cloud backed up':'Waiting for cloud'}</span><button class="btn secondary" data-open-fire="${escapeHtml(r.id)}">Open</button></div></div>`).join('');list.querySelectorAll('[data-open-fire]').forEach(b=>b.addEventListener('click',()=>showFireRecord(b.dataset.openFire)));}
+async function showFireHistory(){switchView('fireHistoryView');const list=qs('fireHistoryList');list.innerHTML='<p class="muted">Loading fire safety history…</p>';const rows=(await allRecords()).filter(r=>r.recordType==='fireWeekly'||r.recordType==='fireDrill');const cloud=await listCloudArchiveFiles('fire');const localNames=new Set(rows.map(r=>(r.cloudPath||'').split('/').pop()).filter(Boolean));const cloudOnly=cloud.filter(x=>!localNames.has(x.name));const items=[...rows.map(r=>({type:'local',sort:r.submittedAt||r.date,r})),...cloudOnly.map(x=>({type:'cloud',sort:x.lastModifiedDateTime||x.createdDateTime||cloudFileDate(x.name),x,date:cloudFileDate(x.name)}))].sort((a,b)=>String(b.sort).localeCompare(String(a.sort)));if(!items.length){list.innerHTML='<p class="muted">No fire safety records have been completed yet.</p>';return;}list.innerHTML=items.map(item=>{if(item.type==='local'){const r=item.r;return `<div class="history-item"><div><div class="history-title">${escapeHtml(r.room)}</div><div class="history-meta">${niceDate(r.date)} • ${escapeHtml(r.completedBy)} ${r.hasIssue?'• ⚠ Issue recorded':''}</div></div><div class="history-actions"><span class="pill ${r.syncStatus==='synced'?'good':'neutral'}">${r.syncStatus==='synced'?'Cloud backed up':'Waiting for cloud'}</span><button class="btn secondary" data-open-fire="${escapeHtml(r.id)}">Open</button></div></div>`;}const x=item.x;const title=/drill/i.test(x.name)?'Fire Drill Log':'Weekly Fire Alarm & Safety Check';return `<div class="history-item"><div><div class="history-title">${title}</div><div class="history-meta">${item.date?niceDate(item.date)+' • ':''}OneDrive shared record</div></div><div class="history-actions"><span class="pill good">Cloud backed up</span>${x.webUrl?`<button class="btn secondary" data-cloud-url="${escapeHtml(x.webUrl)}">Open PDF</button>`:''}</div></div>`;}).join('');list.querySelectorAll('[data-open-fire]').forEach(b=>b.addEventListener('click',()=>showFireRecord(b.dataset.openFire)));list.querySelectorAll('[data-cloud-url]').forEach(b=>b.addEventListener('click',()=>window.open(b.dataset.cloudUrl,'_blank','noopener')));}
 async function showFireRecord(id){const r=await getRecord(id);if(!r)return;currentFireRecordId=id;const rows=(r.fire.answers||[]).map(a=>`<tr><td>${escapeHtml(a.q)}${a.note?`<br><small>${escapeHtml(a.note)}</small>`:''}</td><td><b>${escapeHtml(a.status)}</b></td><td>${a.status==='No'?`<b>Issue:</b> ${escapeHtml(a.issue)}<br><b>Action:</b> ${escapeHtml(a.action)}`:'—'}</td></tr>`).join('');let details=r.recordType==='fireWeekly'?`<p><b>Date:</b> ${niceDate(r.date)}<br><b>Completed by:</b> ${escapeHtml(r.completedBy)}<br><b>Interlinked smoke alarm test initiated from:</b> ${escapeHtml(r.fire.alarmLocation)}</p>`:`<p><b>Date:</b> ${niceDate(r.date)} &nbsp; <b>Time:</b> ${escapeHtml(r.fire.time)}<br><b>Total evacuation time:</b> ${escapeHtml(r.fire.evacTime)} &nbsp; <b>Target:</b> ${escapeHtml(r.fire.targetTime)}<br><b>Children:</b> ${escapeHtml(r.fire.children)} &nbsp; <b>Staff:</b> ${escapeHtml(r.fire.staff)} &nbsp; <b>Visitors:</b> ${escapeHtml(r.fire.visitors)}<br><b>Drill:</b> ${escapeHtml(r.fire.planned)} &nbsp; <b>Alarm:</b> ${escapeHtml(r.fire.alarmType)}</p>`;let sign=r.recordType==='fireDrill'?`<h3>Comments / sign-off</h3><p>${escapeHtml(r.fire.comments||'None recorded')}</p><p><b>Person leading drill:</b> ${escapeHtml(r.fire.lead)}<br><b>Fire Warden:</b> ${escapeHtml(r.fire.warden)}<br><b>Senior management review:</b> ${escapeHtml(r.fire.management)}</p>`:'';qs('fireRecordCard').innerHTML=`<div class="eyebrow">WILLOW PARK MONTESSORI</div><h2>${escapeHtml(r.room)}</h2>${details}<table><thead><tr><th>Check</th><th>Result</th><th>Action if required</th></tr></thead><tbody>${rows}</tbody></table>${sign}<p><b>Submitted:</b> ${new Date(r.submittedAt).toLocaleString('en-GB')}</p>`;switchView('fireRecordView');}
 
 async function makeDailyPdfBlob(r){
@@ -635,6 +651,7 @@ let cloudProgressTimer=null;
 function startCloudConnectProgress(){const wrap=qs('cloudConnectProgress'),bar=qs('cloudConnectProgressBar'),txt=qs('cloudConnectProgressText');if(!wrap||!bar)return;wrap.classList.remove('hidden');bar.style.width='6%';if(txt)txt.textContent='Connecting to OneDrive…';let value=6;clearInterval(cloudProgressTimer);cloudProgressTimer=setInterval(()=>{value=Math.min(90,value+(value<55?8:value<78?4:1));bar.style.width=value+'%';},350);}
 function stopCloudConnectProgress(success=false){clearInterval(cloudProgressTimer);const wrap=qs('cloudConnectProgress'),bar=qs('cloudConnectProgressBar'),txt=qs('cloudConnectProgressText');if(!wrap||!bar)return;if(success){bar.style.width='100%';if(txt)txt.textContent='Connected';setTimeout(()=>wrap.classList.add('hidden'),450);}else wrap.classList.add('hidden');}
 async function cloudConnect(){
+  sessionStorage.setItem("wpcCloudConnectInProgress","1");
   startCloudConnectProgress();
   const client=await initMicrosoft();
   if(!client){stopCloudConnectProgress(false);alert("Microsoft sign-in is not available. Connect to the internet and reload once.");return}
@@ -651,6 +668,7 @@ async function cloudConnect(){
     qs("cloudConnect").disabled=false;qs("cloudConnect").textContent="Connect OneDrive";
     if(topConnect){topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
     if(gateConnect){gateConnect.disabled=false;gateConnect.textContent="Connect OneDrive";}
+    sessionStorage.removeItem("wpcCloudConnectInProgress");
     stopCloudConnectProgress(false);
     alert("Could not start Microsoft sign-in: "+e.message);
   }
@@ -868,6 +886,7 @@ function updateConnectionPill(){
       pill.className="pill neutral";pill.textContent="Offline • saved locally";
       if(topConnect){topConnect.classList.remove("hidden");topConnect.disabled=true;topConnect.textContent="Connect OneDrive";}
     }else if(session){
+      sessionStorage.removeItem("wpcCloudConnectInProgress");
       stopCloudConnectProgress(true);
       pill.className="pill good";pill.textContent="Online • cloud connected";
       if(topConnect){topConnect.classList.add("hidden");topConnect.disabled=false;topConnect.textContent="Connect OneDrive";}
@@ -985,6 +1004,7 @@ qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
 
 (async function init(){
   db=await openDB();
+  if(sessionStorage.getItem("wpcCloudConnectInProgress")==="1") startCloudConnectProgress();
   qs("todayText").textContent=new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   if("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("./sw.js").catch(console.warn);
 
@@ -1014,4 +1034,5 @@ qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
     console.info("OneDrive silent reconnect was not available; interaction may be required.",e?.message||e);
   }
   updateConnectionPill();
+  setTimeout(async()=>{if(sessionStorage.getItem("wpcCloudConnectInProgress")==="1" && !(await getCloudSession())){sessionStorage.removeItem("wpcCloudConnectInProgress");stopCloudConnectProgress(false);}},2500);
 })();
