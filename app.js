@@ -63,6 +63,7 @@ let answers = [];
 let currentRecordId = null;
 let msalInstance = null;
 let msalReady = false;
+let dailyCloudStatusCache={date:"",fetchedAt:0,rooms:{}};
 
 function qs(id){ return document.getElementById(id); }
 function escapeHtml(s){ return String(s ?? "").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
@@ -117,21 +118,31 @@ async function goHome(){ switchView("homeView"); await renderHome(); }
 async function renderHome(){
   const records=await allRecords(), today=localISO();
   const roomSet=visibleRooms();
+  let cloudRooms={};
+  const cloud=await getCloudSession();
+  if(cloud && navigator.onLine){
+    try{ cloudRooms=await getDailyCloudCompletions(today); }
+    catch(e){ console.info("Could not refresh shared daily completion status.",e?.message||e); }
+  }
   qs("homeHeading").textContent = "Today's checks";
   const grid=qs("roomGrid"); grid.innerHTML="";
   roomSet.forEach(room=>{
     const rec=records.find(r=>r.room===room&&r.date===today);
+    const cloudRec=cloudRooms[room];
+    const completed=!!rec||!!cloudRec;
     const b=document.createElement("button");
     b.className="room-card";
-    if(rec) b.classList.add(rec.hasIssue?"issue":"done");
-    b.innerHTML=`<div class="room-name">${escapeHtml(room)}</div><div class="room-state ${rec?(rec.hasIssue?"bad":"good"):""}">${rec?(rec.hasIssue?"⚠ Issue recorded":`✓ Completed ${niceTime(rec.submittedAt)}`):"Not completed"}</div>`;
+    if(completed) b.classList.add(rec?.hasIssue?"issue":"done");
+    let state="Not completed",stateClass="";
+    if(rec){ state=rec.hasIssue?"⚠ Issue recorded":`✓ Completed ${niceTime(rec.submittedAt)}`; stateClass=rec.hasIssue?"bad":"good"; }
+    else if(cloudRec){ state=`✓ Completed${cloudRec.time?` ${cloudRec.time}`:""}`; stateClass="good"; }
+    b.innerHTML=`<div class="room-name">${escapeHtml(room)}</div><div class="room-state ${stateClass}">${state}</div>`;
     b.addEventListener("click",()=>openForm(room));
     grid.appendChild(b);
   });
   const pending=records.filter(r=>r.syncStatus!=="synced").length;
-  const cloud=await getCloudSession();
   qs("syncSummary").innerHTML = cloud
-    ? `<span class="pill good">Cloud connected</span>${pending?` <span class="pill neutral">${pending} waiting to upload</span>`:""}`
+    ? `<span class="pill good">Cloud connected • shared status refreshed</span>${pending?` <span class="pill neutral">${pending} waiting to upload</span>`:""}`
     : `<span class="pill neutral">Saved locally${pending?` • ${pending} waiting for cloud`:""}</span>`;
   updateConnectionPill();
 }
@@ -671,6 +682,30 @@ async function graphFetch(path,options={}){
 async function getAppRoot(){
   return graphFetch("/me/drive/special/approot?$select=id,name,webUrl");
 }
+async function getDailyCloudCompletions(date=localISO(),force=false){
+  const now=Date.now();
+  if(!force && dailyCloudStatusCache.date===date && now-dailyCloudStatusCache.fetchedAt<15000) return dailyCloudStatusCache.rooms;
+  const st=getSettings(), [y,m,d]=date.split("-"), prefix=`${d}-${m}-${y} - `;
+  let folder=await getAppRoot();
+  for(const name of ["Risk Assessments",st.academicYear,st.currentTerm]){
+    folder=await findChildFolder(folder.id,safePathPart(name));
+    if(!folder){ dailyCloudStatusCache={date,fetchedAt:now,rooms:{}}; return {}; }
+  }
+  const roomFolders=await graphFetch(`/me/drive/items/${encodeURIComponent(folder.id)}/children?$select=id,name,folder&$top=200`);
+  const byName=new Map((roomFolders?.value||[]).filter(x=>x.folder).map(x=>[x.name,x]));
+  const rooms={};
+  await Promise.all(ROOMS.map(async room=>{
+    const rf=byName.get(safePathPart(room)); if(!rf)return;
+    const data=await graphFetch(`/me/drive/items/${encodeURIComponent(rf.id)}/children?$select=id,name,file,createdDateTime,lastModifiedDateTime&$top=200`);
+    const matches=(data?.value||[]).filter(x=>x.file && x.name.startsWith(prefix));
+    if(!matches.length)return;
+    matches.sort((a,b)=>String(b.createdDateTime||b.lastModifiedDateTime||"").localeCompare(String(a.createdDateTime||a.lastModifiedDateTime||"")));
+    const item=matches[0], stamp=item.createdDateTime||item.lastModifiedDateTime||"";
+    rooms[room]={name:item.name,time:stamp?niceTime(stamp):""};
+  }));
+  dailyCloudStatusCache={date,fetchedAt:Date.now(),rooms};
+  return rooms;
+}
 async function findChildFolder(parentId,name){
   const data=await graphFetch(`/me/drive/items/${encodeURIComponent(parentId)}/children?$select=id,name,folder&$top=200`);
   return (data?.value||[]).find(x=>x.folder && x.name===name) || null;
@@ -725,6 +760,7 @@ async function uploadRecordPdf(rec){
   }
   const uploaded=await uploadBlobToFolder(folder.id,filename,blob);
   rec.syncStatus="synced";rec.syncError="";rec.syncedAt=new Date().toISOString();rec.cloudPath=cloudPdfPath(rec,uploaded?.name||filename);rec.cloudWebUrl=uploaded?.webUrl||"";await putRecord(rec);
+  dailyCloudStatusCache={date:"",fetchedAt:0,rooms:{}};
   return rec.cloudPath;
 }
 async function retryCurrentCloudUpload(){

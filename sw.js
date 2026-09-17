@@ -1,4 +1,4 @@
-const CACHE="willow-park-checks-v3-8-outing-pdf-font-fix";
+const CACHE="willow-park-checks-v3-9-shared-daily-status";
 const CORE=["./","./index.html","./styles.css","./app.js","./manifest.webmanifest"];
 const LIBS=[
   "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",

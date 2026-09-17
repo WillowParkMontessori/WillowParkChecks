@@ -100,3 +100,7 @@ The outing form includes the fields from Willow Park's existing outing assessmen
 ### v3.8 PDF display fix
 - Fixed abnormal letter spacing in the Outing Risk Assessment final pre-departure checklist PDF by removing the unsupported Unicode tick glyph and using standard Helvetica-safe list markers.
 - Keeps the final pre-departure checklist together on one PDF page where space permits.
+
+
+## v3.9 – Shared daily completion status
+When OneDrive is connected, the Today’s checks screen now reads the current term’s shared OneDrive Risk Assessments folders and marks a daily area complete when today’s PDF exists, regardless of which nursery tablet submitted it. Local IndexedDB remains the offline/pending-upload fallback. Shared status is refreshed when returning to the home screen, with a short 15-second cache to avoid unnecessary Graph requests.
