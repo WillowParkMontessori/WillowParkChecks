@@ -261,22 +261,42 @@ async function showHistory(){
   if(!qs("historyWeek").value) qs("historyWeek").value=mondayOf(localISO());
   await renderHistory();
 }
+function dailyCloudLabel(name,roomFallback=""){
+  const clean=String(name||"").replace(/\.pdf$/i,"").replace(/\s+-\s+\d{2}-\d{2}-\d{2}$/,'');
+  const m=clean.match(/^(\d{2})-(\d{2})-(\d{4})\s+-\s+(.+?)\s+-\s+(.+)$/);
+  return m?{date:`${m[3]}-${m[2]}-${m[1]}`,room:m[4],staff:m[5]}:{date:cloudFileDate(name),room:roomFallback,staff:""};
+}
+async function listDailyCloudArchiveFiles(){
+  const session=await getCloudSession(); if(!session)return [];
+  try{
+    const st=getSettings();let folder=await getAppRoot();
+    for(const name of ["Risk Assessments",st.academicYear,st.currentTerm]){folder=await findChildFolder(folder.id,safePathPart(name));if(!folder)return [];}
+    const roomData=await graphFetch(`/me/drive/items/${encodeURIComponent(folder.id)}/children?$select=id,name,folder&$top=200`);
+    const roomFolders=(roomData?.value||[]).filter(x=>x.folder);
+    const groups=await Promise.all(roomFolders.map(async rf=>{
+      const data=await graphFetch(`/me/drive/items/${encodeURIComponent(rf.id)}/children?$select=id,name,file,webUrl,createdDateTime,lastModifiedDateTime&$top=200`);
+      return (data?.value||[]).filter(x=>x.file&&/\.pdf$/i.test(x.name||"")).map(x=>({...x,roomFolder:rf.name}));
+    }));
+    return groups.flat();
+  }catch(e){console.warn("Could not load shared daily history",e);return [];}
+}
 async function renderHistory(){
-  let rows=(await allRecords()).filter(r=>r.recordType!=="outing"), area=qs("historyArea").value, week=qs("historyWeek").value;
-  if(area) rows=rows.filter(r=>r.room===area);
-  if(week){const days=weekDates(week);rows=rows.filter(r=>days.includes(r.date))}
-  const list=qs("historyList");
-  if(!rows.length){list.innerHTML=`<p class="muted">No matching local assessments.</p>`;return}
-  list.innerHTML=rows.map(r=>`<div class="history-item">
-    <div><div class="history-title">${escapeHtml(r.room)} — ${niceDate(r.date)}</div><div class="history-meta">${escapeHtml(r.completedBy)} • ${niceTime(r.submittedAt)} • Saved locally</div></div>
-    <div class="history-actions">
-      <span class="pill ${r.hasIssue?"bad":"good"}">${r.hasIssue?"Issue":"Passed"}</span>
-      <button class="btn secondary smallbtn" data-open="${r.id}">Open</button>
-      <button class="btn secondary smallbtn" data-week="${escapeHtml(r.room)}|${mondayOf(r.date)}">Weekly</button>
-    </div>
-  </div>`).join("");
+  const list=qs("historyList");list.innerHTML='<p class="muted">Loading shared history…</p>';
+  let rows=(await allRecords()).filter(r=>r.recordType!=="outing"&&r.recordType!=="fireWeekly"&&r.recordType!=="fireDrill"), area=qs("historyArea").value, week=qs("historyWeek").value;
+  const cloud=await listDailyCloudArchiveFiles();
+  const localNames=new Set(rows.map(r=>(r.cloudPath||"").split("/").pop()).filter(Boolean));
+  let items=[...rows.map(r=>({type:"local",date:r.date,room:r.room,sort:r.submittedAt||r.date,r})),...cloud.filter(x=>!localNames.has(x.name)).map(x=>{const l=dailyCloudLabel(x.name,x.roomFolder);return {type:"cloud",date:l.date,room:l.room,staff:l.staff,sort:x.lastModifiedDateTime||x.createdDateTime||l.date,x};})];
+  if(area)items=items.filter(i=>i.room===area);
+  if(week){const days=weekDates(week);items=items.filter(i=>days.includes(i.date));}
+  items.sort((a,b)=>String(b.sort).localeCompare(String(a.sort)));
+  if(!items.length){list.innerHTML=`<p class="muted">No matching assessments.</p>`;return}
+  list.innerHTML=items.map(item=>{
+    if(item.type==="local"){const r=item.r;return `<div class="history-item"><div><div class="history-title">${escapeHtml(r.room)} — ${niceDate(r.date)}</div><div class="history-meta">${escapeHtml(r.completedBy)} • ${niceTime(r.submittedAt)} • ${r.syncStatus==="synced"?"OneDrive backed up":"Saved locally"}</div></div><div class="history-actions"><span class="pill ${r.hasIssue?"bad":"good"}">${r.hasIssue?"Issue":"Passed"}</span><button class="btn secondary smallbtn" data-open="${r.id}">Open</button><button class="btn secondary smallbtn" data-week="${escapeHtml(r.room)}|${mondayOf(r.date)}">Weekly</button></div></div>`;}
+    const x=item.x;return `<div class="history-item"><div><div class="history-title">${escapeHtml(item.room)} — ${niceDate(item.date)}</div><div class="history-meta">${escapeHtml(item.staff)}${item.staff?" • ":""}OneDrive shared record</div></div><div class="history-actions"><span class="pill good">Cloud backed up</span>${x.webUrl?`<button class="btn secondary smallbtn" data-cloud-url="${escapeHtml(x.webUrl)}">Open PDF</button>`:""}</div></div>`;
+  }).join("");
   list.querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>showRecord(b.dataset.open,"historyView")));
   list.querySelectorAll("[data-week]").forEach(b=>b.addEventListener("click",()=>{const [room,w]=b.dataset.week.split("|");showWeekly(room,w)}));
+  list.querySelectorAll("[data-cloud-url]").forEach(b=>b.addEventListener("click",()=>window.open(b.dataset.cloudUrl,"_blank","noopener")));
 }
 
 async function showRecord(id){
@@ -899,6 +919,31 @@ function updateConnectionPill(){
 }
 
 
+async function getSharedStaffFile(){
+  const root=await getAppRoot();const folder=await findChildFolder(root.id,"Shared Settings");if(!folder)return null;
+  return findChildItem(folder.id,"staff-members.json");
+}
+async function readSharedStaff(){
+  const file=await getSharedStaffFile();if(!file)return null;
+  const token=await getGraphToken();const response=await fetch(`${GRAPH_BASE}/me/drive/items/${encodeURIComponent(file.id)}/content`,{headers:{Authorization:`Bearer ${token}`}});
+  if(!response.ok)throw new Error(`Could not read shared staff list (${response.status})`);
+  const data=await response.json();return Array.isArray(data?.staffMembers)?data.staffMembers.map(cleanStaffName).filter(Boolean):[];
+}
+async function writeSharedStaff(staffMembers){
+  const root=await getAppRoot();const folder=await ensureChildFolder(root.id,"Shared Settings");const token=await getGraphToken();
+  const body=JSON.stringify({staffMembers:[...staffMembers].sort((a,b)=>a.localeCompare(b,"en-GB")),updatedAt:new Date().toISOString()},null,2);
+  const response=await fetch(`${GRAPH_BASE}/me/drive/items/${encodeURIComponent(folder.id)}:/${encodeURIComponent("staff-members.json")}:/content`,{method:"PUT",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body});
+  if(!response.ok)throw new Error(`Could not update shared staff list (${response.status})`);
+}
+async function syncStaffFromCloud(){
+  if(!navigator.onLine||!(await getCloudSession()))return false;
+  try{
+    const cloudStaff=await readSharedStaff();const s=getSettings();
+    if(cloudStaff===null){await writeSharedStaff(s.staffMembers);return true;}
+    s.staffMembers=cloudStaff;saveSettings(s);renderStaffList();renderStaffDropdown();return true;
+  }catch(e){console.warn("Could not sync shared staff list",e);return false;}
+}
+
 function renderStaffDropdown(){
   const select=qs("completedBy");
   if(!select) return;
@@ -923,7 +968,8 @@ function renderStaffList(){
   list.innerHTML=staff.map((name,i)=>`<div class="staff-item"><div class="staff-item-name">${escapeHtml(name)}</div><button type="button" class="btn danger" data-remove-staff="${i}">Remove</button></div>`).join("");
 }
 
-function loadSettingsUI(){
+async function loadSettingsUI(){
+  await syncStaffFromCloud();
   const s=getSettings();
   qs("academicYear").value=s.academicYear;
   qs("currentTerm").value=s.currentTerm;
@@ -932,23 +978,21 @@ function loadSettingsUI(){
   refreshCloudStatus();
 }
 
-function addStaffMember(){
+async function addStaffMember(){
   const input=qs("newStaffName"), name=cleanStaffName(input.value);
   if(!name){alert("Enter the staff member's full name first.");input.focus();return;}
-  const s=getSettings();
-  if(s.staffMembers.some(x=>x.toLocaleLowerCase("en-GB")===name.toLocaleLowerCase("en-GB"))){
-    alert("That staff member is already in the list.");return;
-  }
-  s.staffMembers=[...s.staffMembers,name].sort((a,b)=>a.localeCompare(b,"en-GB"));
-  saveSettings(s);input.value="";renderStaffList();renderStaffDropdown();toast(`${name} added to staff list.`);
+  await syncStaffFromCloud();const s=getSettings();
+  if(s.staffMembers.some(x=>x.toLocaleLowerCase("en-GB")===name.toLocaleLowerCase("en-GB"))){alert("That staff member is already in the list.");return;}
+  s.staffMembers=[...s.staffMembers,name].sort((a,b)=>a.localeCompare(b,"en-GB"));saveSettings(s);input.value="";renderStaffList();renderStaffDropdown();
+  try{if(navigator.onLine&&await getCloudSession()){await writeSharedStaff(s.staffMembers);toast(`${name} added across all tablets.`);}else toast(`${name} added on this tablet; connect OneDrive to share it.`);}catch(e){console.warn(e);toast(`${name} added locally; shared staff update is waiting.`);}
 }
 
-function removeStaffMember(index){
-  const s=getSettings(), name=s.staffMembers[index];
+async function removeStaffMember(index){
+  await syncStaffFromCloud();const s=getSettings(), name=s.staffMembers[index];
   if(!name) return;
-  if(!confirm(`Remove ${name} from the staff dropdown?\n\nExisting completed assessments will not be changed.`)) return;
-  s.staffMembers=s.staffMembers.filter((_,i)=>i!==index);
-  saveSettings(s);renderStaffList();renderStaffDropdown();toast(`${name} removed from future checks.`);
+  if(!confirm(`Remove ${name} from the staff dropdown on all tablets?\n\nExisting completed assessments will not be changed.`)) return;
+  s.staffMembers=s.staffMembers.filter((_,i)=>i!==index);saveSettings(s);renderStaffList();renderStaffDropdown();
+  try{if(navigator.onLine&&await getCloudSession()){await writeSharedStaff(s.staffMembers);toast(`${name} removed from future checks across all tablets.`);}else toast(`${name} removed on this tablet; connect OneDrive to share the change.`);}catch(e){console.warn(e);toast(`${name} removed locally; shared staff update is waiting.`);}
 }
 
 document.addEventListener("click",e=>{
@@ -1029,7 +1073,7 @@ qs("cloudRetryPending").addEventListener("click",retryPendingCloudUploads);
 
   try{
     await initMicrosoft();
-    if(await getCloudSession()) await getGraphToken();
+    if(await getCloudSession()){ await getGraphToken(); await syncStaffFromCloud(); }
   }catch(e){
     console.info("OneDrive silent reconnect was not available; interaction may be required.",e?.message||e);
   }
