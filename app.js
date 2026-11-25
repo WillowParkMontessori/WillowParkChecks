@@ -161,7 +161,7 @@ function renderChecks(){
   const box=qs("checkList"); box.innerHTML="";
   answers.forEach((a,i)=>{
     const row=document.createElement("div"); row.className="check-row";
-    row.innerHTML=`<div class="check-q">${i+1}. ${escapeHtml(a.q)}</div>
+    row.innerHTML=`<div class="check-q">${i+1}. ${escapeHtml(currentRoom==="Kitchen" && a.q==="Fridge temperature recorded" ? a.q+" (3 x fridges)" : currentRoom==="Kitchen" && a.q==="Freezer temperature recorded" ? a.q+" (2 x freezers)" : a.q)}</div>
       <div class="choice-row">
         <button type="button" class="choice ${a.status==="Safe"?"selected safe":""}" data-i="${i}" data-status="Safe">✓ Safe</button>
         <button type="button" class="choice ${a.status==="Issue"?"selected issue":""}" data-i="${i}" data-status="Issue">✕ Issue</button>
